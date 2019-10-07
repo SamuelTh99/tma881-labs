@@ -41,10 +41,10 @@ struct result {
 struct result* results_values;
 struct result** results;
 
-char colors[][] = {
+char colors[11][12] = {
     "105 105 105 ", //Gray: -1 (index = root_value + 1)
     "255 0   0   ",
-    "242 214 182 ",
+    "100 80  182 ",
     "217 255 191 ",
     "57  88  115 ",
     "173 0   217 ",
@@ -73,8 +73,11 @@ int main() {
         results[i] = results_values + j;
     }
 
+
     find_roots();
 
+    write_attractors_file();
+/*
     for (size_t i = 0; i < picture_size; i++) {
         for (size_t j = 0; j < picture_size; j++) {
             printf("%d\t ", results[i][j].root);
@@ -88,8 +91,10 @@ int main() {
         }
         printf("\n");
     }
+*/
 
-
+    free(results);
+    free(results_values);
     return 0;
 }
 
@@ -123,7 +128,14 @@ struct result newton(double complex x) {
         int root = get_nearby_root(x);
         if (root != -1) {
             res.root = root;
-            res.iterations = min(i, 50);
+            //res.iterations = min(i, 50);
+            if (i > 50){
+               res.iterations = 50;
+            } else
+            {
+                res.iterations = i;
+            }
+            
             break;
         }
 
@@ -166,14 +178,26 @@ double complex f_deriv(double complex x) {
 
 void write_attractors_file(){
     FILE * fp;
-    fp = open("newton_attractors_file.ppm", "w");
+    fp = fopen("newton_attractors_file.ppm", "w");
 
-    fprintf(fp, "P3\n%d %d\n", picture_size, picture_size);
-    //for (int i = 0; i < 11; i++) {
-      //  fwir
+    fprintf(fp, "P3\n%ld %ld\n255\n", picture_size, picture_size);
+
+    char * buf = (char *) malloc(sizeof(char) * ((picture_size * 12) ));//+1));
+
+
+    for (size_t i = 0; i < picture_size; i++) {
+        for (size_t j = 0, buf_j = 0; j < picture_size; j++, buf_j+=12) {
+            for (int x = 0; x < 12; x ++) {
+                printf("%c",colors[results[i][j].root +1][x]);
+                buf[buf_j+x] = colors[results[i][j].root +1][x];
+            }
+            //fwrite((colors[results[i][j].root +1]), sizeof(char), 12, fp);
+        }
+        //buf[(picture_size*12) +1] = "\n";
+        printf("\n-----------\n");
+        fprintf(fp, "\n");
+        fwrite(buf, sizeof(char), picture_size * 12, fp);    
     }
-    
-    fwrite(colors,);
 }
 
 void write_convergence_file(){
