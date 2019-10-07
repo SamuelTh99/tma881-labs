@@ -32,7 +32,7 @@ int main() {
     roots[4] = cpow(-1, 0.8);
     num_roots = 5;
 
-    double complex x = 100 + 100*I;
+    double complex x = 1 + I;
     int d = 5;
 
     int root = newton(x, d);
@@ -44,7 +44,7 @@ int main() {
 }
 
 void print_complex_double(double complex d) {
-    printf("%f%+fi\n", creal(d), cimag(d));
+    printf("%lf%+lfi\n", creal(d), cimag(d));
 }
 
 int newton(double complex x, int d) {
@@ -66,7 +66,7 @@ int newton(double complex x, int d) {
 
 // TODO: Flip order of checks, most common should be first
 bool illegal_value(double complex x) {
-    if (fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS || cabs(x) < ERROR_MARGIN) { // out of bounds OR too close to origin
+    if (cabs(x) < ERROR_MARGIN || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) { // out of bounds OR too close to origin
         return true;
     }
     return false;
