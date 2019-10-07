@@ -12,7 +12,7 @@
 
 void print_complex_double(double complex dbl);
 void find_roots();
-int newton(double complex x);
+struct result newton(double complex x);
 bool illegal_value(double complex x);
 int get_nearby_root(double complex x);
 double complex next_x(double complex x);
@@ -21,8 +21,8 @@ double complex f_deriv(double complex x);
 
 #define OUT_OF_BOUNDS 10000000000
 #define ERROR_MARGIN 0.001
-#define X_MIN -2
-#define X_MAX 2
+#define X_MIN -2.0
+#define X_MAX 2.0
 
 int num_roots;
 double complex* roots;
@@ -30,12 +30,17 @@ double complex* roots;
 int picture_size;
 int d;
 
-int* results_values;
-int** results;
+struct result {
+    int root;
+    int iterations;
+};
+
+struct result* results_values;
+struct result** results;
 
 int main() {
     d = 5;
-    int l = 10;
+    picture_size = 20;
 
     num_roots = d;
     roots = (double complex*) malloc(sizeof(double complex) * num_roots);
@@ -45,22 +50,28 @@ int main() {
     roots[3] = -cpow(-1, 0.6);
     roots[4] = cpow(-1, 0.8);
 
-    picture_size = l;
-    
-    results_values = (int*) malloc(l * l * sizeof(int));
-    results = (int**) malloc(l * sizeof(int*));
-    for (size_t i = 0, j = 0; i < l; i++, j += l) {
+    results_values = (struct result*) malloc(sizeof(struct result) * picture_size * picture_size);
+    results = (struct result**) malloc(sizeof(struct result*) * picture_size);
+    for (size_t i = 0, j = 0; i < picture_size; i++, j += l) {
         results[i] = results_values + j;
     }
 
     find_roots();
 
-    for (int i = 0; i < l; i++) {
-        for (int j = 0; j < l; j++) {
-            printf("%d ", results[i][j]);
+    for (int i = 0; i < picture_size; i++) {
+        for (int j = 0; j < picture_size; j++) {
+            printf("%d\t ", results[i][j].root);
         }
         printf("\n");
     }
+    printf("\n");
+    for (int i = 0; i < picture_size; i++) {
+        for (int j = 0; j < picture_size; j++) {
+            printf("%2d\t ", results[i][j].iterations);
+        }
+        printf("\n");
+    }
+
 
     return 0;
 }
@@ -70,33 +81,39 @@ void print_complex_double(double complex dbl) {
 }
 
 void find_roots() {
-    double step_size = (X_MAX - X_MIN) / ((double) picture_size);
-    int i = 0, j = 0;
-    for (double re = X_MIN; re <= X_MAX; re += step_size, i++) {
-        for (double im = X_MIN; im <= X_MAX; im += step_size, j++) {
-            printf("find_roots - j: %d", j);
+    double step_size = fabs(X_MAX - X_MIN) / picture_size;
+    double im = X_MIN;
+    for (int i = 0; i < picture_size; i++, im += step_size) {
+        double re = X_MIN;
+        for (int j = 0; j < picture_size; j++, re += step_size) {
             double complex x = re + im * I;
-            int root = newton(x);
-            results[i][j] = root;
+            // TODO: Send in a pointer to a result struct instead of creating struct inside newton function?
+            results[i][j] = newton(x);
         }
     }
 }
 
-int newton(double complex x) {
+struct result newton(double complex x) {
+    struct result res;
+
     for (int i = 0; ; i++) {
         if (illegal_value(x)) {
+            res.root = -1;
+            res.iterations = i;
             break;
         }
 
         int root = get_nearby_root(x);
         if (root != -1) {
-            return root;
+            res.root = root;
+            res.iterations = i;
+            break;
         }
 
         x = next_x(x);
     }
 
-    return -1;
+    return res;
 }
 
 // TODO: Flip order of checks, most common should be first
