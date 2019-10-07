@@ -188,13 +188,11 @@ void write_attractors_file(){
     for (size_t i = 0; i < picture_size; i++) {
         for (size_t j = 0, buf_j = 0; j < picture_size; j++, buf_j+=12) {
             for (int x = 0; x < 12; x ++) {
-                printf("%c",colors[results[i][j].root +1][x]);
                 buf[buf_j+x] = colors[results[i][j].root +1][x];
             }
             //fwrite((colors[results[i][j].root +1]), sizeof(char), 12, fp);
         }
         //buf[(picture_size*12) +1] = "\n";
-        printf("\n-----------\n");
         fprintf(fp, "\n");
         fwrite(buf, sizeof(char), picture_size * 12, fp);    
     }
