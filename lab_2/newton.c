@@ -6,9 +6,10 @@
 
 // Implementation plan:
 // x. Function for doing Newton's method for a single x value
-// 2. Function for doing Newton's method for a 1000x1000 grid using a single thread, writing result to file
-// 3. Multithreaded implementation of above
-// 4. Parse command line args
+// x. Function for doing Newton's method for a 1000x1000 grid using a single thread, writing result to file
+// 3. Write results to file
+// 4. Multithreaded implementation of above
+// 5. Parse command line args
 
 void print_complex_double(double complex dbl);
 void find_roots();
@@ -18,25 +19,41 @@ int get_nearby_root(double complex x);
 double complex next_x(double complex x);
 double complex f(double complex x);
 double complex f_deriv(double complex x);
+void write_attractors_file();
+void write_convergence_file();
 
 #define OUT_OF_BOUNDS 10000000000
 #define ERROR_MARGIN 0.001
 #define X_MIN -2.0
 #define X_MAX 2.0
 
-int num_roots;
+char num_roots;
 double complex* roots;
 
-int picture_size;
-int d;
+long picture_size;
+char d;
 
 struct result {
-    int root;
-    int iterations;
+    char root;
+    char iterations;
 };
 
 struct result* results_values;
 struct result** results;
+
+char colors[][] = {
+    "105 105 105 ", //Gray: -1 (index = root_value + 1)
+    "255 0   0   ",
+    "242 214 182 ",
+    "217 255 191 ",
+    "57  88  115 ",
+    "173 0   217 ",
+    "76  0   0   ",
+    "255 170 0   ",
+    "0   217 58  ",
+    "0   20  51  ",
+    "87  26  102 "
+};
 
 int main() {
     d = 5;
@@ -52,21 +69,21 @@ int main() {
 
     results_values = (struct result*) malloc(sizeof(struct result) * picture_size * picture_size);
     results = (struct result**) malloc(sizeof(struct result*) * picture_size);
-    for (size_t i = 0, j = 0; i < picture_size; i++, j += l) {
+    for (size_t i = 0, j = 0; i < picture_size; i++, j += picture_size) {
         results[i] = results_values + j;
     }
 
     find_roots();
 
-    for (int i = 0; i < picture_size; i++) {
-        for (int j = 0; j < picture_size; j++) {
+    for (size_t i = 0; i < picture_size; i++) {
+        for (size_t j = 0; j < picture_size; j++) {
             printf("%d\t ", results[i][j].root);
         }
         printf("\n");
     }
     printf("\n");
-    for (int i = 0; i < picture_size; i++) {
-        for (int j = 0; j < picture_size; j++) {
+    for (size_t i = 0; i < picture_size; i++) {
+        for (size_t j = 0; j < picture_size; j++) {
             printf("%2d\t ", results[i][j].iterations);
         }
         printf("\n");
@@ -106,7 +123,7 @@ struct result newton(double complex x) {
         int root = get_nearby_root(x);
         if (root != -1) {
             res.root = root;
-            res.iterations = i;
+            res.iterations = min(i, 50);
             break;
         }
 
@@ -116,18 +133,18 @@ struct result newton(double complex x) {
     return res;
 }
 
-// TODO: Flip order of checks, most common should be first
 bool illegal_value(double complex x) {
-    if (cabs(x) < ERROR_MARGIN || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) { // out of bounds OR too close to origin
+    // TODO: Flip order of checks, most common should be first
+    if (cabs(x) < ERROR_MARGIN || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) {
         return true;
     }
     return false;
 }
 
 int get_nearby_root(double complex x) {
-    for (int i = 0; i < num_roots; i++) {
+    for (char i = 0; i < num_roots; i++) {
         double complex root = roots[i];
-        double dist = cabs(x - root); // note: +, -, * and / are overloaded for complex numbers
+        double dist = cabs(x - root); // NOTE: +, -, * and / are overloaded for complex numbers
         if (dist < ERROR_MARGIN) {
             return i;
         }
@@ -145,4 +162,22 @@ double complex f(double complex x) {
 
 double complex f_deriv(double complex x) {
     return d * cpow(x, d - 1);
+}
+
+void write_attractors_file(){
+    FILE * fp;
+    fp = open("newton_attractors_file.ppm", "w");
+
+    fprintf(fp, "P3\n%d %d\n", picture_size, picture_size);
+    //for (int i = 0; i < 11; i++) {
+      //  fwir
+    }
+    
+    fwrite(colors,);
+}
+
+void write_convergence_file(){
+    // P3
+    // L L
+    // M   
 }
