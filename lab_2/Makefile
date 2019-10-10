@@ -2,7 +2,7 @@
 all: newton
 
 newton: newton.c
-	gcc -O0 -o newton newton.c -lm
+	gcc -O2 -o newton newton.c -lm
 
 .PHONY: clean
 clean:
