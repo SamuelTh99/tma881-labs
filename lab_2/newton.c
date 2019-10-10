@@ -30,6 +30,7 @@ void* writer_thread_main(void* restrict arg);
 
 #define OUT_OF_BOUNDS 10000000000
 #define ERROR_MARGIN 0.001
+#define ERROR_MARGIN_2 0.000001
 #define X_MIN -2.0
 #define X_MAX 2.0
 #define MAX_ITERATIONS 50
@@ -259,7 +260,7 @@ struct result newton(double complex x) {
 
 bool illegal_value(double complex x) {
     // TODO: Flip order of checks, most common should be first
-    if (cabs(x) < ERROR_MARGIN || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) {
+    if (creal(x) * creal(x) + cimag(x) * cimag(x) < ERROR_MARGIN_2 || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) {
         return true;
     }
     return false;
