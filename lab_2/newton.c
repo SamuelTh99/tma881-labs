@@ -7,15 +7,6 @@
 #include <getopt.h> 
 #include <pthread.h> 
 
-// Implementation plan:
-// x. Function for doing Newton's method for a single x value
-// x. Function for doing Newton's method for a 1000x1000 grid using a single thread, writing result to file
-// x. Write results to file
-// x. Parse command line args
-// x. Handle poly_degree = 1...9  
-// 6. Optimize
-// 7. Multithreaded implementation of above
-
 void print_complex_double(double complex dbl);
 void init_roots();
 void init_results_matrix();
@@ -35,7 +26,7 @@ void* writer_thread_main(void* restrict arg);
 #define X_MAX 2.0
 #define MAX_ITERATIONS 50
 #define COLOR_TRIPLET_LEN 12
-#define GRAYSCALE_COLOR_LEN 5
+#define GRAYSCALE_COLOR_LEN 4
 #define SLEEP_NSEC 5
 
 size_t picture_size;
