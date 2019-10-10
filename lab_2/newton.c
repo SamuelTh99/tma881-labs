@@ -68,6 +68,7 @@ char attractors_colors[10][COLOR_TRIPLET_LEN] = {
     "175 51  209 ",
     "208 47  149 ",
 };
+char convergence_colors[MAX_ITERATIONS + 1][GRAYSCALE_COLOR_LEN];
 
 int main(int argc, char* argv[]) {
     // TODO: Handle errors when arguments are not supplied correctly.
@@ -203,6 +204,9 @@ void init_results_matrix() {
         ready[i] = false;
     }
     pthread_mutex_init(&ready_mutex, NULL);
+    for (size_t i = 0; i <= MAX_ITERATIONS; i++) {
+        sprintf(convergence_colors + i, "%3d ", i);
+    }
 }
 
 void* worker_thread_main(void* restrict arg) {
@@ -347,7 +351,8 @@ void* writer_thread_main(void* restrict arg) {
                 strncpy(buf_attractors + offset_attractors, root_color, COLOR_TRIPLET_LEN);
                 offset_attractors += COLOR_TRIPLET_LEN;
 
-                sprintf(buf_convergence + offset_convergence, "%3d ", result.iterations);
+                char* iterations_color = convergence_colors[result.iterations];
+                strncpy(buf_convergence + offset_convergence, iterations_color, GRAYSCALE_COLOR_LEN);
                 offset_convergence += GRAYSCALE_COLOR_LEN;
             }
             
