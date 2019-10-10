@@ -47,16 +47,16 @@ struct result* results_values;
 struct result** results;
 
 char attractors_colors[10][COLOR_TRIPLET_LEN] = {
-    "105 105 105 ", // Color used for points that don't converge
-    "255 0   0   ",
-    "100 80  182 ",
-    "217 255 191 ",
-    "57  88  115 ",
-    "173 0   217 ",
-    "76  0   0   ",
-    "255 170 0   ",
-    "0   217 58  ",
-    "0   20  51  "
+    "181 181 181 ", // Color used for points that don't converge
+    "204 51  46  ",
+    "208 106 47  ",
+    "208 152 47  ",
+    "208 200 47  ",
+    "119 208 47  ",
+    "51  177 209 ",
+    "51  83  209 ",
+    "175 51  209 ",
+    "208 47  149 ",
 };
 
 int main() {
@@ -76,7 +76,6 @@ int main() {
 
     return 0;
 }
-
 
 void print_complex_double(double complex dbl) {
     printf("%lf%+lfi\n", creal(dbl), cimag(dbl));
