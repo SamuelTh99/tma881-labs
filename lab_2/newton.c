@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
                 break;
             default:
                 printf("Usage: ./newton -t<num_thread> -l<picture_size> <poly_degree>");
-                return 1;
+                return -1;
         }
     }
     poly_degree = atoi(argv[argc - 1]);
@@ -92,19 +92,19 @@ int main(int argc, char* argv[]) {
         *arg = i;
         if ((ret = pthread_create(threads + i, NULL, worker_thread_main, (void*) arg))) {
             printf("Error creating worker thread: %d\n", ret);
-            exit(1);
+            return -1;
         }
     }
 
     if ((ret = pthread_create(threads + num_threads, NULL, writer_thread_main, NULL))) {
         printf("Error creating writer thread: %d\n", ret);
-        exit(1);
+        return -1;
     }
 
     for (char i = 0; i < num_threads + 1; i++) {
         if ((ret = pthread_join(threads[i], NULL))) {
             printf("Error joining thread: %d\n", ret);
-            exit(1);
+            return -1;
         }
     }
 
@@ -252,7 +252,6 @@ struct result newton(double complex x) {
 }
 
 bool illegal_value(double complex x) {
-    // TODO: Flip order of checks, most common should be first
     if (creal(x) * creal(x) + cimag(x) * cimag(x) < ERROR_MARGIN_2 || fabs(creal(x)) > OUT_OF_BOUNDS || fabs(cimag(x)) > OUT_OF_BOUNDS) {
         return true;
     }
