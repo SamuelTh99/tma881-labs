@@ -5,6 +5,7 @@
 #include <complex.h>
 #include <stdbool.h> 
 #include <getopt.h> 
+#include <pthread.h> 
 
 // Implementation plan:
 // x. Function for doing Newton's method for a single x value
@@ -18,7 +19,7 @@
 void print_complex_double(double complex dbl);
 void init_roots();
 void init_results_matrix();
-void find_roots();
+void* worker_thread_main(void* restrict arg);
 struct result newton(double complex x);
 bool illegal_value(double complex x);
 int get_nearby_root(double complex x);
@@ -40,6 +41,8 @@ char poly_degree;
 
 char num_roots;
 double complex* roots;
+
+char num_threads;
 
 struct result {
     char root;
@@ -63,8 +66,6 @@ char attractors_colors[10][COLOR_TRIPLET_LEN] = {
 };
 
 int main(int argc, char* argv[]) {
-    int num_threads;
-
     // TODO: Handle errors when arguments are not supplied correctly.
     int option;
     while ((option = getopt(argc, argv, "t:l:")) != -1) {
@@ -87,7 +88,24 @@ int main(int argc, char* argv[]) {
     init_roots();
     init_results_matrix();
 
-    find_roots();
+    pthread_t threads[num_threads];
+
+    int ret;
+    for (char i = 0; i < num_threads; i++) {
+        char* arg = (char*) malloc(sizeof(char));
+        *arg = i;
+        if ((ret = pthread_create(threads + i, NULL, worker_thread_main, (void*) arg))) {
+            printf("Error creating thread: %d\n", ret);
+            exit(1);
+        }
+    }
+
+    for (char i = 0; i < num_threads; i++) {
+        if ((ret = pthread_join(threads[i], NULL))) {
+            printf("Error joining thread: %d\n", ret);
+            exit(1);
+        }
+    }
 
     write_files();
 
@@ -172,17 +190,22 @@ void init_results_matrix() {
     }
 }
 
-void find_roots() {
+void* worker_thread_main(void* restrict arg) {
+    char offset = *((char*) arg);
+    struct result row_results[picture_size];
     double step_size = fabs(X_MAX - X_MIN) / picture_size;
-    double im = X_MIN;
-    for (int i = 0; i < picture_size; i++, im += step_size) {
+    double im = X_MIN + offset * step_size;
+    double im_step_size = fabs(X_MAX - X_MIN) / picture_size * num_threads;
+    for (long i = offset; i < picture_size; i += num_threads, im += im_step_size) {
         double re = X_MIN;
-        for (int j = 0; j < picture_size; j++, re += step_size) {
+        for (long j = 0; j < picture_size; j++, re += step_size) {
+            // printf("i, j: %d, %d\n", i, j);
             double complex x = re + im * I;
-            // TODO: Send in a pointer to a result struct instead of creating struct inside newton function?
-            results[i][j] = newton(x);
+            row_results[j] = newton(x);
         }
+        memcpy(results[i], row_results, sizeof(struct result) * picture_size);
     }
+    return NULL;
 }
 
 struct result newton(double complex x) {
