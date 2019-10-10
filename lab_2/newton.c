@@ -12,7 +12,8 @@
 // x. Write results to file
 // x. Parse command line args
 // x. Handle poly_degree = 1...9  
-// 6. Multithreaded implementation of above
+// 6. Optimize
+// 7. Multithreaded implementation of above
 
 void print_complex_double(double complex dbl);
 void init_roots();
@@ -231,15 +232,29 @@ int get_nearby_root(double complex x) {
 }
 
 double complex next_x(double complex x) {
-    return x - f(x) / f_deriv(x);
-}
-
-double complex f(double complex x) {
-    return cpow(x, poly_degree) - 1;
-}
-
-double complex f_deriv(double complex x) {
-    return poly_degree * cpow(x, poly_degree - 1);
+    switch (poly_degree) {
+        case 1:
+            return 1.0;
+        case 2:
+            return 1.0 / (2.0 * x) + x / 2.0;
+        case 3:
+            return 1.0 / (3.0 * x*x) + 2.0 * x / 3.0;
+        case 4:
+            return 1.0 / (4.0 * x*x*x) + 3.0 * x / 4.0;
+        case 5:
+            return 1.0 / (5.0 * x*x*x*x) + 4.0 * x / 5.0;
+        case 6:
+            return 1.0 / (6.0 * x*x*x*x*x) + 5.0 * x / 6.0;
+        case 7:
+            return 1.0 / (7.0 * x*x*x*x*x*x) + 6.0 * x / 7.0;
+        case 8:
+            return 1.0 / (8.0 * x*x*x*x*x*x*x) + 7.0 * x / 8.0;
+        case 9:
+            return 1.0 / (9.0 * x*x*x*x*x*x*x*x) + 8.0 * x / 9.0;
+        default:
+            printf("Invalid poly_degree %d\n", poly_degree);
+            exit(1);
+    }
 }
 
 void write_files() {
