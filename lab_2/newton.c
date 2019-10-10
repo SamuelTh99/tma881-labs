@@ -269,8 +269,8 @@ bool illegal_value(double complex x) {
 int get_nearby_root(double complex x) {
     for (char i = 0; i < num_roots; i++) {
         double complex root = roots[i];
-        double dist = cabs(x - root); // NOTE: +, -, * and / are overloaded for complex numbers
-        if (dist < ERROR_MARGIN) {
+        double complex diff = x - root;
+        if (creal(diff) * creal(diff) + cimag(diff) * cimag(diff) < ERROR_MARGIN_2) {
             return i;
         }
     }
