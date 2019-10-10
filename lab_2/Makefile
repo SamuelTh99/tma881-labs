@@ -4,6 +4,13 @@ all: newton
 newton: newton.c
 	gcc -O2 -o newton newton.c -lm -lpthread
 
+.PHONY: images
+images: newton
+	for d in {1..9}; do \
+		echo "d = $$d" ;\
+		./newton -t4 -l1000 $$d ;\
+	done
+
 newton.tar.gz: newton.c Makefile
 	tar -cvzf newton.tar.gz newton.c Makefile
 
