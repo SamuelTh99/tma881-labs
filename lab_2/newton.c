@@ -4,13 +4,15 @@
 #include <math.h>
 #include <complex.h>
 #include <stdbool.h> 
+#include <getopt.h> 
 
 // Implementation plan:
 // x. Function for doing Newton's method for a single x value
 // x. Function for doing Newton's method for a 1000x1000 grid using a single thread, writing result to file
 // x. Write results to file
-// 4. Multithreaded implementation of above
-// 5. Parse command line args
+// x. Parse command line args
+// x. Handle poly_degree = 1...9  
+// 6. Multithreaded implementation of above
 
 void print_complex_double(double complex dbl);
 void init_roots();
@@ -33,7 +35,7 @@ void write_files();
 #define GRAYSCALE_COLOR_LEN 4
 
 long picture_size;
-char d;
+char poly_degree;
 
 char num_roots;
 double complex* roots;
@@ -59,9 +61,27 @@ char attractors_colors[10][COLOR_TRIPLET_LEN] = {
     "208 47  149 ",
 };
 
-int main() {
-    d = 5;
-    picture_size = 1000;
+int main(int argc, char* argv[]) {
+    int num_threads;
+
+    // TODO: Handle errors when arguments are not supplied correctly.
+    int option;
+    while ((option = getopt(argc, argv, "t:l:")) != -1) {
+        switch (option) {
+            case 't':
+                num_threads = atoi(optarg);
+                break;
+            case 'l':
+                picture_size = atoi(optarg);
+                break;
+            default:
+                printf("Usage: ./newton -t<num_thread> -l<picture_size> <poly_degree>");
+                return 1;
+        }
+    }
+    poly_degree = atoi(argv[argc - 1]);
+
+    printf("t: %d, l: %ld, d: %d\n", num_threads, picture_size, poly_degree);
 
     init_roots();
     init_results_matrix();
@@ -82,13 +102,65 @@ void print_complex_double(double complex dbl) {
 }
 
 void init_roots() {
-    num_roots = d;
+    num_roots = poly_degree;
     roots = (double complex*) malloc(sizeof(double complex) * num_roots);
     roots[0] = 1;
-    roots[1] = -cpow(-1, 0.2);
-    roots[2] = cpow(-1, 0.4);
-    roots[3] = -cpow(-1, 0.6);
-    roots[4] = cpow(-1, 0.8);
+    switch (poly_degree) {
+        case 1:
+            break;
+        case 2:
+            roots[1] = -1;
+            break;
+        case 3:
+            roots[1] = -cpow(-1, 1.0 / 3.0);
+            roots[2] = cpow(-1, 2.0 / 3.0);
+            break;
+        case 4:
+            roots[1] = -1;
+            roots[2] = -I;
+            roots[3] = I;
+            break;
+        case 5:
+            roots[1] = -cpow(-1, 0.2);
+            roots[2] = cpow(-1, 0.4);
+            roots[3] = -cpow(-1, 0.6);
+            roots[4] = cpow(-1, 0.8);
+            break;
+        case 6:
+            roots[1] = -1;
+            roots[2] = -cpow(-1, 1.0 / 3.0);
+            roots[3] = cpow(-1, 1.0 / 3.0);
+            roots[4] = -cpow(-1, 2.0 / 3.0);
+            roots[5] = cpow(-1, 2.0 / 3.0);
+            break;
+        case 7:
+            roots[1] = -cpow(-1, 1.0 / 7.0);
+            roots[2] = cpow(-1, 2.0 / 7.0);
+            roots[3] = -cpow(-1, 3.0 / 7.0);
+            roots[4] = cpow(-1, 4.0 / 7.0);
+            roots[5] = -cpow(-1, 5.0 / 7.0);
+            roots[6] = cpow(-1, 6.0 / 7.0);
+            break;
+        case 8:
+            roots[1] = -1;
+            roots[2] = -I;
+            roots[3] = I;
+            roots[4] = -cpow(-1, 0.25);
+            roots[5] = cpow(-1, 0.25);
+            roots[6] = -cpow(-1, 0.75);
+            roots[7] = cpow(-1, 0.75);
+            break;
+        case 9:
+            roots[1] = -cpow(-1, 1.0 / 9.0);
+            roots[2] = cpow(-1, 2.0 / 9.0);
+            roots[3] = -cpow(-1, 3.0 / 9.0);
+            roots[4] = cpow(-1, 4.0 / 9.0);
+            roots[5] = -cpow(-1, 5.0 / 9.0);
+            roots[6] = cpow(-1, 6.0 / 9.0);
+            roots[7] = -cpow(-1, 7.0 / 9.0);
+            roots[8] = cpow(-1, 8.0 / 9.0);
+            break;
+    }
 }
 
 void init_results_matrix() {
@@ -163,18 +235,18 @@ double complex next_x(double complex x) {
 }
 
 double complex f(double complex x) {
-    return cpow(x, d) - 1;
+    return cpow(x, poly_degree) - 1;
 }
 
 double complex f_deriv(double complex x) {
-    return d * cpow(x, d - 1);
+    return poly_degree * cpow(x, poly_degree - 1);
 }
 
 void write_files() {
     char attractors_filename[25];
     char convergence_filename[26];
-    sprintf(attractors_filename, "newton_attractors_x%d.ppm", d);
-    sprintf(convergence_filename, "newton_convergence_x%d.ppm", d);
+    sprintf(attractors_filename, "newton_attractors_x%d.ppm", poly_degree);
+    sprintf(convergence_filename, "newton_convergence_x%d.ppm", poly_degree);
     FILE* fp_attractors = fopen(attractors_filename, "w");
     FILE* fp_convergence = fopen(convergence_filename, "w");
 
