@@ -4,7 +4,7 @@ all: newton
 newton: newton.c
 	gcc -O2 -o newton newton.c -lm -lpthread
 
-newton.tar.gz: newton Makefile
+newton.tar.gz: newton.c Makefile
 	tar -cvzf newton.tar.gz newton.c Makefile
 
 .PHONY: test
