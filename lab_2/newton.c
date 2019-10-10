@@ -68,7 +68,7 @@ char attractors_colors[10][COLOR_TRIPLET_LEN] = {
     "175 51  209 ",
     "208 47  149 ",
 };
-char convergence_colors[MAX_ITERATIONS + 1][GRAYSCALE_COLOR_LEN];
+char convergence_colors[MAX_ITERATIONS + 1][GRAYSCALE_COLOR_LEN + 1];
 
 int main(int argc, char* argv[]) {
     // TODO: Handle errors when arguments are not supplied correctly.
@@ -204,11 +204,9 @@ void init_results_matrix() {
         ready[i] = false;
     }
     pthread_mutex_init(&ready_mutex, NULL);
-    printf("7: num roots: %d\n", num_roots);
     for (char i = 0; i <= MAX_ITERATIONS; i++) {
         sprintf(convergence_colors[i], "%3d ", i);
     }
-    printf("8: num roots: %d\n", num_roots);
 }
 
 void* worker_thread_main(void* restrict arg) {
@@ -231,8 +229,6 @@ void* worker_thread_main(void* restrict arg) {
         pthread_mutex_lock(&ready_mutex);
         ready[i] = true;
         pthread_mutex_unlock(&ready_mutex);
-
-        // printf("WORKER: row %ld done\n", i);
     }
     return NULL;
 }
@@ -336,7 +332,6 @@ void* writer_thread_main(void* restrict arg) {
         }
         pthread_mutex_unlock(&ready_mutex);
 
-        // printf("WRITER: access row %ld\n", i);
         if (!ready_loc[i]) {
             nanosleep( &sleep_timespec, NULL);
             continue;
