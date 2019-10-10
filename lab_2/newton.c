@@ -35,7 +35,7 @@ void* writer_thread_main(void* restrict arg);
 #define X_MAX 2.0
 #define MAX_ITERATIONS 50
 #define COLOR_TRIPLET_LEN 12
-#define GRAYSCALE_COLOR_LEN 4
+#define GRAYSCALE_COLOR_LEN 5
 #define SLEEP_NSEC 5
 
 size_t picture_size;
@@ -204,9 +204,11 @@ void init_results_matrix() {
         ready[i] = false;
     }
     pthread_mutex_init(&ready_mutex, NULL);
+    printf("7: num roots: %d\n", num_roots);
     for (char i = 0; i <= MAX_ITERATIONS; i++) {
         sprintf(convergence_colors[i], "%3d ", i);
     }
+    printf("8: num roots: %d\n", num_roots);
 }
 
 void* worker_thread_main(void* restrict arg) {
