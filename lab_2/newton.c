@@ -26,7 +26,7 @@ int get_nearby_root(double complex x);
 double complex next_x(double complex x);
 double complex f(double complex x);
 double complex f_deriv(double complex x);
-void write_files();
+void* writer_thread_main(void* restrict arg);
 
 #define OUT_OF_BOUNDS 10000000000
 #define ERROR_MARGIN 0.001
@@ -35,8 +35,9 @@ void write_files();
 #define MAX_ITERATIONS 50
 #define COLOR_TRIPLET_LEN 12
 #define GRAYSCALE_COLOR_LEN 4
+#define SLEEP_NSEC 5
 
-long picture_size;
+size_t picture_size;
 char poly_degree;
 
 char num_roots;
@@ -51,6 +52,8 @@ struct result {
 
 struct result* results_values;
 struct result** results;
+bool* ready;
+pthread_mutex_t ready_mutex;
 
 char attractors_colors[10][COLOR_TRIPLET_LEN] = {
     "181 181 181 ", // Color used for points that don't converge
@@ -83,35 +86,40 @@ int main(int argc, char* argv[]) {
     }
     poly_degree = atoi(argv[argc - 1]);
 
-    printf("t: %d, l: %ld, d: %d\n", num_threads, picture_size, poly_degree);
+    // printf("t: %d, l: %ld, d: %d\n", num_threads, picture_size, poly_degree);
 
     init_roots();
     init_results_matrix();
 
-    pthread_t threads[num_threads];
+    pthread_t threads[num_threads + 1];
 
     int ret;
     for (char i = 0; i < num_threads; i++) {
         char* arg = (char*) malloc(sizeof(char));
         *arg = i;
         if ((ret = pthread_create(threads + i, NULL, worker_thread_main, (void*) arg))) {
-            printf("Error creating thread: %d\n", ret);
+            printf("Error creating worker thread: %d\n", ret);
             exit(1);
         }
     }
 
-    for (char i = 0; i < num_threads; i++) {
+    if ((ret = pthread_create(threads + num_threads, NULL, writer_thread_main, NULL))) {
+        printf("Error creating writer thread: %d\n", ret);
+        exit(1);
+    }
+
+    for (char i = 0; i < num_threads + 1; i++) {
         if ((ret = pthread_join(threads[i], NULL))) {
             printf("Error joining thread: %d\n", ret);
             exit(1);
         }
     }
 
-    write_files();
-
     free(roots);
     free(results);
     free(results_values);
+    free(ready);
+    pthread_mutex_destroy(&ready_mutex);
 
     return 0;
 }
@@ -182,28 +190,42 @@ void init_roots() {
     }
 }
 
+// TODO: Rename.
 void init_results_matrix() {
     results_values = (struct result*) malloc(sizeof(struct result) * picture_size * picture_size);
     results = (struct result**) malloc(sizeof(struct result*) * picture_size);
     for (size_t i = 0, j = 0; i < picture_size; i++, j += picture_size) {
         results[i] = results_values + j;
     }
+    ready = (bool*) malloc(sizeof(bool) * picture_size);
+    for (size_t i = 0; i < picture_size; i++) {
+        ready[i] = false;
+    }
+    pthread_mutex_init(&ready_mutex, NULL);
 }
 
 void* worker_thread_main(void* restrict arg) {
     char offset = *((char*) arg);
+    free(arg);
+
     struct result row_results[picture_size];
     double step_size = fabs(X_MAX - X_MIN) / picture_size;
     double im = X_MIN + offset * step_size;
     double im_step_size = fabs(X_MAX - X_MIN) / picture_size * num_threads;
-    for (long i = offset; i < picture_size; i += num_threads, im += im_step_size) {
+    for (size_t i = offset; i < picture_size; i += num_threads, im += im_step_size) {
         double re = X_MIN;
-        for (long j = 0; j < picture_size; j++, re += step_size) {
-            // printf("i, j: %d, %d\n", i, j);
+        for (size_t j = 0; j < picture_size; j++, re += step_size) {
             double complex x = re + im * I;
             row_results[j] = newton(x);
         }
+
         memcpy(results[i], row_results, sizeof(struct result) * picture_size);
+
+        pthread_mutex_lock(&ready_mutex);
+        ready[i] = true;
+        pthread_mutex_unlock(&ready_mutex);
+
+        // printf("WORKER: row %ld done\n", i);
     }
     return NULL;
 }
@@ -280,7 +302,7 @@ double complex next_x(double complex x) {
     }
 }
 
-void write_files() {
+void* writer_thread_main(void* restrict arg) { 
     char attractors_filename[25];
     char convergence_filename[26];
     sprintf(attractors_filename, "newton_attractors_x%d.ppm", poly_degree);
@@ -295,28 +317,49 @@ void write_files() {
     size_t buf_attractors_len = picture_size * COLOR_TRIPLET_LEN + 1;
     size_t buf_convergence_len = picture_size * GRAYSCALE_COLOR_LEN + 1;
 
-    for (size_t i = 0; i < picture_size; i++) {
+    bool ready_loc[picture_size];
+    struct timespec sleep_timespec;
+    sleep_timespec.tv_sec = 0;
+    sleep_timespec.tv_nsec = SLEEP_NSEC;
+
+    for (size_t i = 0; i < picture_size; ) {
+        pthread_mutex_lock(&ready_mutex);
+        if (ready[i]) {
+            memcpy(ready_loc, ready, picture_size * sizeof(bool));
+        }
+        pthread_mutex_unlock(&ready_mutex);
+
+        // printf("WRITER: access row %ld\n", i);
+        if (!ready_loc[i]) {
+            nanosleep( &sleep_timespec, NULL);
+            continue;
+        }
+
         char buf_attractors[buf_attractors_len];
         char buf_convergence[buf_convergence_len];
 
-        for (size_t j = 0, offset_attractors = 0, offset_convergence = 0; j < picture_size; j++) {
-            struct result result = results[i][j];
-            
-            char* root_color = attractors_colors[result.root + 1];
-            strncpy(buf_attractors + offset_attractors, root_color, COLOR_TRIPLET_LEN);
-            offset_attractors += COLOR_TRIPLET_LEN;
+        for (; i < picture_size && ready_loc[i]; i ++) {
+            for (size_t j = 0, offset_attractors = 0, offset_convergence = 0; j < picture_size; j++) {
+                struct result result = results[i][j];
+                
+                char* root_color = attractors_colors[result.root + 1];
+                strncpy(buf_attractors + offset_attractors, root_color, COLOR_TRIPLET_LEN);
+                offset_attractors += COLOR_TRIPLET_LEN;
 
-            sprintf(buf_convergence + offset_convergence, "%3d ", result.iterations);
-            offset_convergence += GRAYSCALE_COLOR_LEN;
+                sprintf(buf_convergence + offset_convergence, "%3d ", result.iterations);
+                offset_convergence += GRAYSCALE_COLOR_LEN;
+            }
+            
+            buf_attractors[buf_attractors_len - 1] = '\n';
+            buf_convergence[buf_convergence_len - 1] = '\n';
+            
+            fwrite(buf_attractors, sizeof(char), buf_attractors_len, fp_attractors);
+            fwrite(buf_convergence, sizeof(char), buf_convergence_len, fp_convergence);
         }
-        
-        buf_attractors[buf_attractors_len - 1] = '\n';
-        buf_convergence[buf_convergence_len - 1] = '\n';
-        
-        fwrite(buf_attractors, sizeof(char), buf_attractors_len, fp_attractors);
-        fwrite(buf_convergence, sizeof(char), buf_convergence_len, fp_convergence);
     }
 
     fclose(fp_attractors);
     fclose(fp_convergence);
+
+    return NULL;
 }
