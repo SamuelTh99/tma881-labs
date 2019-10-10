@@ -204,8 +204,8 @@ void init_results_matrix() {
         ready[i] = false;
     }
     pthread_mutex_init(&ready_mutex, NULL);
-    for (size_t i = 0; i <= MAX_ITERATIONS; i++) {
-        sprintf(convergence_colors + i, "%3d ", i);
+    for (char i = 0; i <= MAX_ITERATIONS; i++) {
+        sprintf(convergence_colors[i], "%3d ", i);
     }
 }
 
