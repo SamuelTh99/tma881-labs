@@ -7,9 +7,13 @@
 #include <getopt.h> 
 #include <pthread.h> 
 
+void parse_args(int argc, char* argv[]);
 void print_complex_double(double complex dbl);
 void init_roots();
-void init_results_matrix();
+void init_results_vars();
+void free_vars();
+void start_threads(pthread_t* threads);
+void join_threads(pthread_t* threads);
 void* worker_thread_main(void* restrict arg);
 struct result newton(double complex x);
 bool illegal_value(double complex x);
@@ -18,6 +22,8 @@ double complex next_x(double complex x);
 double complex f(double complex x);
 double complex f_deriv(double complex x);
 void* writer_thread_main(void* restrict arg);
+void write_file_headers(FILE* fp_attractors, FILE* fp_convergence);
+void write_file_bodies(FILE* fp_attractors, FILE* fp_convergence);
 
 #define OUT_OF_BOUNDS 10000000000
 #define ERROR_MARGIN 0.001
@@ -47,22 +53,22 @@ struct result** results;
 bool* ready;
 pthread_mutex_t ready_mutex;
 
-char attractors_colors[10][COLOR_TRIPLET_LEN] = {
-    "181 181 181 ", // Color used for points that don't converge
-    "204 51  46  ",
-    "208 106 47  ",
-    "208 152 47  ",
-    "208 200 47  ",
-    "119 208 47  ",
-    "51  177 209 ",
-    "51  83  209 ",
-    "175 51  209 ",
-    "208 47  149 ",
-};
-char convergence_colors[MAX_ITERATIONS + 1][GRAYSCALE_COLOR_LEN + 1];
-
 int main(int argc, char* argv[]) {
-    // TODO: Handle errors when arguments are not supplied correctly.
+    parse_args(argc, argv);
+
+    init_roots();
+    init_results_vars();
+
+    pthread_t threads[num_threads + 1];
+    start_threads(threads);
+    join_threads(threads);
+
+    free_vars();
+
+    return 0;
+}
+
+void parse_args(int argc, char* argv[]) {
     int option;
     while ((option = getopt(argc, argv, "t:l:")) != -1) {
         switch (option) {
@@ -74,47 +80,10 @@ int main(int argc, char* argv[]) {
                 break;
             default:
                 printf("Usage: ./newton -t<num_thread> -l<picture_size> <poly_degree>");
-                return -1;
+                exit(1);
         }
     }
     poly_degree = atoi(argv[argc - 1]);
-
-    // printf("t: %d, l: %ld, d: %d\n", num_threads, picture_size, poly_degree);
-
-    init_roots();
-    init_results_matrix();
-
-    pthread_t threads[num_threads + 1];
-
-    int ret;
-    for (char i = 0; i < num_threads; i++) {
-        char* arg = (char*) malloc(sizeof(char));
-        *arg = i;
-        if ((ret = pthread_create(threads + i, NULL, worker_thread_main, (void*) arg))) {
-            printf("Error creating worker thread: %d\n", ret);
-            return -1;
-        }
-    }
-
-    if ((ret = pthread_create(threads + num_threads, NULL, writer_thread_main, NULL))) {
-        printf("Error creating writer thread: %d\n", ret);
-        return -1;
-    }
-
-    for (char i = 0; i < num_threads + 1; i++) {
-        if ((ret = pthread_join(threads[i], NULL))) {
-            printf("Error joining thread: %d\n", ret);
-            return -1;
-        }
-    }
-
-    free(roots);
-    free(results);
-    free(results_values);
-    free(ready);
-    pthread_mutex_destroy(&ready_mutex);
-
-    return 0;
 }
 
 void print_complex_double(double complex dbl) {
@@ -183,8 +152,7 @@ void init_roots() {
     }
 }
 
-// TODO: Rename.
-void init_results_matrix() {
+void init_results_vars() {
     results_values = (struct result*) malloc(sizeof(struct result) * picture_size * picture_size);
     results = (struct result**) malloc(sizeof(struct result*) * picture_size);
     for (size_t i = 0, j = 0; i < picture_size; i++, j += picture_size) {
@@ -195,8 +163,40 @@ void init_results_matrix() {
         ready[i] = false;
     }
     pthread_mutex_init(&ready_mutex, NULL);
-    for (char i = 0; i <= MAX_ITERATIONS; i++) {
-        sprintf(convergence_colors[i], "%3d ", i);
+}
+
+void free_vars() {
+    free(roots);
+    free(results);
+    free(results_values);
+    free(ready);
+    pthread_mutex_destroy(&ready_mutex);
+}
+
+void start_threads(pthread_t* threads) {
+    int ret;
+    for (char i = 0; i < num_threads; i++) {
+        char* arg = (char*) malloc(sizeof(char));
+        *arg = i;
+        if ((ret = pthread_create(threads + i, NULL, worker_thread_main, (void*) arg))) {
+            printf("Error creating worker thread: %d\n", ret);
+            exit(1);
+        }
+    }
+
+    if ((ret = pthread_create(threads + num_threads, NULL, writer_thread_main, NULL))) {
+        printf("Error creating writer thread: %d\n", ret);
+        exit(1);
+    }
+}
+
+void join_threads(pthread_t* threads){
+    int ret;
+    for (char i = 0; i < num_threads + 1; i++) {
+        if ((ret = pthread_join(threads[i], NULL))) {
+            printf("Error joining thread: %d\n", ret);
+            exit(1);
+        }
     }
 }
 
@@ -205,12 +205,14 @@ void* worker_thread_main(void* restrict arg) {
     free(arg);
 
     struct result row_results[picture_size];
-    double step_size = fabs(X_MAX - X_MIN) / picture_size;
-    double im = X_MIN + offset * step_size;
-    double im_step_size = fabs(X_MAX - X_MIN) / picture_size * num_threads;
+
+    double re_step_size = fabs(X_MAX - X_MIN) / picture_size;
+    double im = X_MIN + offset * re_step_size;
+    double im_step_size = re_step_size * num_threads;
+
     for (size_t i = offset; i < picture_size; i += num_threads, im += im_step_size) {
         double re = X_MIN;
-        for (size_t j = 0; j < picture_size; j++, re += step_size) {
+        for (size_t j = 0; j < picture_size; j++, re += re_step_size) {
             double complex x = re + im * I;
             row_results[j] = newton(x);
         }
@@ -221,6 +223,7 @@ void* worker_thread_main(void* restrict arg) {
         ready[i] = true;
         pthread_mutex_unlock(&ready_mutex);
     }
+
     return NULL;
 }
 
@@ -303,8 +306,38 @@ void* writer_thread_main(void* restrict arg) {
     FILE* fp_attractors = fopen(attractors_filename, "w");
     FILE* fp_convergence = fopen(convergence_filename, "w");
 
+    write_file_headers(fp_attractors, fp_convergence);
+    write_file_bodies(fp_attractors, fp_convergence);
+    
+    fclose(fp_attractors);
+    fclose(fp_convergence);
+
+    return NULL;
+}
+
+void write_file_headers(FILE* fp_attractors, FILE* fp_convergence) {
     fprintf(fp_attractors, "P3\n%ld %ld\n255\n", picture_size, picture_size);
     fprintf(fp_convergence, "P2\n%ld %ld\n%d\n", picture_size, picture_size, MAX_ITERATIONS);
+}
+
+void write_file_bodies(FILE* fp_attractors, FILE* fp_convergence) {
+    char attractors_colors[10][COLOR_TRIPLET_LEN] = {
+        "181 181 181 ", // Color used for points that don't converge
+        "204 51  46  ",
+        "208 106 47  ",
+        "208 152 47  ",
+        "208 200 47  ",
+        "119 208 47  ",
+        "51  177 209 ",
+        "51  83  209 ",
+        "175 51  209 ",
+        "208 47  149 ",
+    };
+
+    char convergence_colors[MAX_ITERATIONS + 1][GRAYSCALE_COLOR_LEN + 1];
+    for (char i = 0; i <= MAX_ITERATIONS; i++) {
+        sprintf(convergence_colors[i], "%3d ", i);
+    }
 
     // + 1 is to make space for newline character at end of line
     size_t buf_attractors_len = picture_size * COLOR_TRIPLET_LEN + 1;
@@ -350,9 +383,4 @@ void* writer_thread_main(void* restrict arg) {
             fwrite(buf_convergence, sizeof(char), buf_convergence_len, fp_convergence);
         }
     }
-
-    fclose(fp_attractors);
-    fclose(fp_convergence);
-
-    return NULL;
 }
