@@ -2,7 +2,7 @@
 all: cell_distances
 
 cell_distances: cell_distances.c
-	gcc -O2 -o cell_distances cell_distances.c -lm
+	gcc -O2 -fopenmp -o cell_distances cell_distances.c -lm -lgomp
 
 run: cell_distances
 	./cell_distances -t5

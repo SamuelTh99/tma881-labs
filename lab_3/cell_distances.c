@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <getopt.h> 
+#include <omp.h> 
 
 #define CHUNK_SIZE 100000
 #define NUM_DISTS 3464
@@ -21,6 +22,8 @@ short compute_distance(struct coord c1, struct coord c2);
 void print_results(long dist_counts[]);
 
 int main() {
+    omp_set_num_threads(4);
+
     char* lines[CHUNK_SIZE];
     long num_coords = read_file(lines);
 
@@ -66,7 +69,8 @@ long read_file(char* lines[]) {
 }
 
 void parse_coords(struct coord coords[], long num_coords, char* lines[]) {
-    for (int i = 0; i < num_coords; i++) {
+    #pragma omp parallel for shared(coords, num_coords, lines)
+    for (size_t i = 0; i < num_coords; i++) {
         char* line = lines[i];
 
         short n1, n2, n3;
