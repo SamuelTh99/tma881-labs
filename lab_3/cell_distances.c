@@ -6,7 +6,8 @@
 #include <omp.h> 
 
 #define CHUNK_SIZE 100000
-#define NUM_DISTS 3464
+#define LINE_LENGTH 24
+#define MAX_DIST 3464
 #define FILENAME "cells"
 
 struct coord {
@@ -21,43 +22,44 @@ void compute_distances(long dist_counts[], long num_coords, struct coord coords[
 short compute_distance(struct coord c1, struct coord c2);
 void print_results(long dist_counts[]);
 
-int main() {
-    // omp_set_num_threads(4);
+int main(int argc, char* argv[]) {
+    if (argc < 2 || argv[1][0] != '-' || argv[1][1] != 't') {
+        printf("Usage: ./cell_distances -t<num_threads>\n");
+        exit(1);
+    }
 
+    int num_threads = atoi(argv[1] + 2);
+    omp_set_num_threads(num_threads);
+
+    printf("reading file ...\n");
     char* lines[CHUNK_SIZE];
     long num_coords = read_file(lines);
 
-    // struct coord coords[num_coords];
-    // parse_coords(coords, num_coords, lines);
+    printf("parsing coords ...\n");
+    struct coord coords[num_coords];
+    parse_coords(coords, num_coords, lines);
 
-    // long dist_counts[NUM_DISTS];
-    // for (size_t dist = 0; dist < NUM_DISTS; dist++) {
-    //     dist_counts[dist] = 0;
-    // }
+    printf("computing distances ...\n");
+    long dist_counts[MAX_DIST];
+    compute_distances(dist_counts, num_coords, coords);
 
-    // compute_distances(dist_counts, num_coords, coords);
-
-    // print_results(dist_counts);
+    print_results(dist_counts);
 
     return 0;
 }
 
 long read_file(char* lines[]) {
-    size_t len = 24;
-    char line[len];
-    ssize_t read;
-
     FILE* fp = fopen(FILENAME, "r");
     if (fp == NULL) {
-        printf("could not open file\n");
+        printf("could not open file %s\n", FILENAME);
         exit(1);
     }
 
-    int num_lines = 0;
-    while ((read = fread(line, sizeof(char), len, fp)) == len) {
-        lines[num_lines] = (char*) malloc(sizeof(char) * len);
-        printf("l: %s\n", line);
-        strcpy(lines[num_lines], line);
+    char line[LINE_LENGTH];
+    long num_lines = 0;
+    while (fread(line, sizeof(char), LINE_LENGTH, fp) == LINE_LENGTH) {
+        lines[num_lines] = (char*) malloc(sizeof(char) * LINE_LENGTH);
+        memcpy(lines[num_lines], line, sizeof(char) * LINE_LENGTH);
         num_lines++;
     }
 
@@ -67,7 +69,6 @@ long read_file(char* lines[]) {
 }
 
 void parse_coords(struct coord coords[], long num_coords, char* lines[]) {
-    #pragma omp parallel for shared(coords, num_coords, lines)
     for (size_t i = 0; i < num_coords; i++) {
         char* line = lines[i];
 
@@ -111,6 +112,10 @@ void parse_coords(struct coord coords[], long num_coords, char* lines[]) {
 }
 
 void compute_distances(long dist_counts[], long num_coords, struct coord coords[]) {
+    for (size_t dist = 0; dist < MAX_DIST; dist++) {
+        dist_counts[dist] = 0;
+    }
+    #pragma omp parallel for reduction(+:dist_counts[:MAX_DIST])
     for (size_t i = 0; i < num_coords - 1; i++) {
         for (size_t j = i + 1; j < num_coords; j++) {
             struct coord c1 = coords[i];
@@ -130,7 +135,7 @@ short compute_distance(struct coord c1, struct coord c2){
 }
 
 void print_results(long dist_counts[]) {
-    for (size_t i = 0; i < NUM_DISTS; i++) {
+    for (size_t i = 0; i < MAX_DIST; i++) {
         long count = dist_counts[i];
         if (count != 0) {
             printf("%.2f: %ld\n", ((double) i) / 100.0, count);
