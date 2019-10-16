@@ -22,29 +22,29 @@ short compute_distance(struct coord c1, struct coord c2);
 void print_results(long dist_counts[]);
 
 int main() {
-    omp_set_num_threads(4);
+    // omp_set_num_threads(4);
 
     char* lines[CHUNK_SIZE];
     long num_coords = read_file(lines);
 
-    struct coord coords[num_coords];
-    parse_coords(coords, num_coords, lines);
+    // struct coord coords[num_coords];
+    // parse_coords(coords, num_coords, lines);
 
-    long dist_counts[NUM_DISTS];
-    for (size_t dist = 0; dist < NUM_DISTS; dist++) {
-        dist_counts[dist] = 0;
-    }
+    // long dist_counts[NUM_DISTS];
+    // for (size_t dist = 0; dist < NUM_DISTS; dist++) {
+    //     dist_counts[dist] = 0;
+    // }
 
-    compute_distances(dist_counts, num_coords, coords);
+    // compute_distances(dist_counts, num_coords, coords);
 
-    print_results(dist_counts);
+    // print_results(dist_counts);
 
     return 0;
 }
 
 long read_file(char* lines[]) {
-    char* line = NULL;
-    size_t len = 0;
+    size_t len = 24;
+    char line[len];
     ssize_t read;
 
     FILE* fp = fopen(FILENAME, "r");
@@ -54,15 +54,13 @@ long read_file(char* lines[]) {
     }
 
     int num_lines = 0;
-    while ((read = getline(&line, &len, fp)) != -1) {
+    while ((read = fread(line, sizeof(char), len, fp)) == len) {
         lines[num_lines] = (char*) malloc(sizeof(char) * len);
+        printf("l: %s\n", line);
         strcpy(lines[num_lines], line);
         num_lines++;
     }
 
-    if (line) {
-        free(line);
-    }
     fclose(fp);
 
     return num_lines;
