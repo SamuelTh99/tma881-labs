@@ -16,7 +16,7 @@ struct coord {
     short n3;
 };
 
-long read_file(char* lines[]);
+long read_file(char* lines[], char* filename);
 void parse_coords(struct coord coords[], long num_coords, char* lines[]);
 void compute_distances(long dist_counts[], long num_coords, struct coord coords[]);
 short compute_distance(struct coord c1, struct coord c2);
@@ -28,12 +28,17 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
+    char* filename = FILENAME;
+    if (argc == 3) {
+        filename = argv[2];
+    }
+
     int num_threads = atoi(argv[1] + 2);
     omp_set_num_threads(num_threads);
 
     // printf("reading file ...\n");
     char* lines[CHUNK_SIZE];
-    long num_coords = read_file(lines);
+    long num_coords = read_file(lines, filename);
 
     // printf("parsing coords ...\n");
     struct coord coords[num_coords];
@@ -48,10 +53,10 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-long read_file(char* lines[]) {
-    FILE* fp = fopen(FILENAME, "r");
+long read_file(char* lines[], char* filename) {
+    FILE* fp = fopen(filename, "r");
     if (fp == NULL) {
-        printf("could not open file %s\n", FILENAME);
+        printf("could not open file %s\n", filename);
         exit(1);
     }
 
