@@ -18,9 +18,10 @@ struct coord {
 
 void cell_distances(long dist_counts[], char* filename);
 size_t read_chunk(struct coord chunk[], FILE* fp);
+struct coord parse_coord(char* line);
+short parse_pos(char* str);
 void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], size_t chunk_size);
 void compute_distances_between_chunks(long dist_counts[], struct coord chunk_1[], size_t chunck_1_size, struct coord chunk_2[], size_t chunk_2_size);
-struct coord parse_coord(char* line);
 short compute_distance(struct coord c1, struct coord c2);
 void print_results(long dist_counts[]);
 
@@ -60,7 +61,7 @@ void cell_distances(long dist_counts[], char* filename) {
     }
 
     size_t chunk_1_size;
-    int i = 0;
+    long i = 0;
     while ((chunk_1_size = read_chunk(chunk_1, fp)) > 0) {
         compute_distances_within_chunk(dist_counts, chunk_1, chunk_1_size);
         
@@ -88,41 +89,23 @@ size_t read_chunk(struct coord chunk[], FILE* fp) {
 }
 
 struct coord parse_coord(char* line) {
-    short n1, n2, n3;
-
-    n1 = (line[1] - 48) * 10000;
-    n1 += (line[2] - 48) * 1000;
-    n1 += (line[4] - 48) * 100;
-    n1 += (line[5] - 48) * 10;
-    n1 += (line[6] - 48);
-    if (line[0] == '-') {
-        n1 = -n1;
-    }
-
-    n2 = (line[9] - 48) * 10000;
-    n2 += (line[10] - 48) * 1000;
-    n2 += (line[12] - 48) * 100;
-    n2 += (line[13] - 48) * 10;
-    n2 += (line[14] - 48);
-    if (line[8] == '-') {
-        n2 = -n2;
-    }
-    
-    n3 = (line[17] - 48) * 10000;
-    n3 += (line[18] - 48) * 1000;
-    n3 += (line[20] - 48) * 100;
-    n3 += (line[21] - 48) * 10;
-    n3 += (line[22] - 48);
-    if (line[16] == '-') {
-        n3 = -n3;
-    }
-
     struct coord c;
-    c.n1 = n1;
-    c.n2 = n2;
-    c.n3 = n3;
-
+    c.n1 = parse_pos(line);
+    c.n2 = parse_pos(line + 8);
+    c.n3 = parse_pos(line + 16);
     return c;
+}
+
+short parse_pos(char* str) {
+    short n = (str[1] - 48) * 10000;
+    n += (str[2] - 48) * 1000;
+    n += (str[4] - 48) * 100;
+    n += (str[5] - 48) * 10;
+    n += (str[6] - 48);
+    if (str[0] == '-') {
+        n = -n;
+    }
+    return n;
 }
 
 void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], size_t chunk_size) {
