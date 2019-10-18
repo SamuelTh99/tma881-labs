@@ -126,6 +126,7 @@ struct coord parse_coord(char* line) {
 }
 
 void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], size_t chunk_size) {
+    #pragma omp parallel for reduction(+:dist_counts[:MAX_DIST])
     for (size_t i = 0; i < chunk_size - 1; i++) {
         for (size_t j = i + 1; j < chunk_size; j++) {
             struct coord c1 = chunk[i];
@@ -137,6 +138,7 @@ void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], si
 }
 
 void compute_distances_between_chunks(long dist_counts[], struct coord chunk_1[], size_t chunk_1_size, struct coord chunk_2[], size_t chunk_2_size) {
+    #pragma omp parallel for collapse(2) reduction(+:dist_counts[:MAX_DIST])
     for (size_t i = 0; i < chunk_1_size; i++) {
         for (size_t j = 0; j < chunk_2_size; j++) {
             struct coord c1 = chunk_1[i];
