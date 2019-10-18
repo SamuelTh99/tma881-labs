@@ -121,11 +121,10 @@ void compute_distances(long dist_counts[], long num_coords, struct coord coords[
     for (size_t dist = 0; dist < MAX_DIST; dist++) {
         dist_counts[dist] = 0;
     }
-    //#pragma omp parallel for reduction(+:dist_counts[:MAX_DIST])
 
-    // TODO: Make sure that we don't get rounding errors
     size_t num_chunks = num_coords / CHUNK_SIZE + 1;
 
+    #pragma omp parallel for reduction(+:dist_counts[:MAX_DIST])
     for (size_t chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
         size_t start_index_i = chunk_i * CHUNK_SIZE;
 
