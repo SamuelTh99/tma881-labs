@@ -37,15 +37,15 @@ int main(int argc, char* argv[]) {
     int num_threads = atoi(argv[1] + 2);
     omp_set_num_threads(num_threads);
 
-    printf("reading file ...\n");
+    // printf("reading file ...\n");
     char* lines[MAX_LINES];
     long num_coords = read_file(lines, filename);
 
-    printf("parsing coords ...\n");
+    // printf("parsing coords ...\n");
     struct coord coords[num_coords];
     parse_coords(coords, num_coords, lines);
 
-    printf("computing distances ...\n");
+    // printf("computing distances ...\n");
     long dist_counts[MAX_DIST];
     compute_distances(dist_counts, num_coords, coords);
 
