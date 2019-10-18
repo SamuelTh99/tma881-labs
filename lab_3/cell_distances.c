@@ -8,7 +8,7 @@
 #define CHUNK_SIZE 100000
 #define LINE_LENGTH 24
 #define MAX_DIST 3464
-#define FILENAME "./test_data/cell_50"
+#define FILENAME "cells"
 
 struct coord {
     short n1; 
