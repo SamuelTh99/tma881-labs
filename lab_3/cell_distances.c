@@ -5,8 +5,8 @@
 #include <getopt.h> 
 #include <omp.h> 
 
-#define MAX_LINES 1000000
-#define CHUNK_SIZE 10000
+#define MAX_LINES 100000
+#define CHUNK_SIZE 1000
 #define LINE_LENGTH 24
 #define MAX_DIST 3466
 #define FILENAME "cells"
@@ -159,7 +159,7 @@ short compute_distance(struct coord c1, struct coord c2){
     int d2 = c1.n2 - c2.n2;
     int d3 = c1.n3 - c2.n3;
     double d = sqrt(d1 * d1 + d2 * d2 + d3 * d3);
-    return (short) lround(d / 10.0);
+    return (short) (d / 10.0);
 }
 
 void print_results(long dist_counts[]) {
