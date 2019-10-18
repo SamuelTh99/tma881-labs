@@ -165,8 +165,6 @@ short compute_distance(struct coord c1, struct coord c2){
 void print_results(long dist_counts[]) {
     for (size_t i = 0; i < MAX_DIST; i++) {
         long count = dist_counts[i];
-        if (count != 0) {
-            printf("%05.2f %ld\n", ((double) i) / 100.0, count);
-        }
+        printf("%05.2f %ld\n", ((double) i) / 100.0, count);
     }
 }
