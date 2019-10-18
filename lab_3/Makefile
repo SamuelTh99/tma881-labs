@@ -2,11 +2,11 @@
 all: cell_distances
 
 cell_distances: cell_distances.c
-	gcc -O2 -fopenmp -o cell_distances cell_distances.c -lm -lgomp
+	gcc -O3 -fopenmp -o cell_distances cell_distances.c -lm -lgomp
 
 .PHONY: mac
 mac: cell_distances.c
-	gcc-9 -O2 -fopenmp -o cell_distances cell_distances.c -lm -lgomp
+	gcc-9 -O3 -fopenmp -o cell_distances cell_distances.c -lm -lgomp
 
 omp_test: omp_test.c
 	gcc-9 -O2 -fopenmp -o omp_test omp_test.c -lm -lgomp
