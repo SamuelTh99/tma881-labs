@@ -18,7 +18,7 @@ cell_distances.tar.gz: cell_distances.c Makefile
 	tar -cvzf cell_distances.tar.gz cell_distances.c Makefile
 
 .PHONY: test
-test: cell_distances.tar.gz
+test: clean cell_distances.tar.gz
 	/home/hpc2019/a3_grading/check_submission.py ~/git-labs/lab_3/cell_distances.tar.gz
 
 .PHONY: clean
