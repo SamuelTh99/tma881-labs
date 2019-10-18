@@ -23,4 +23,4 @@ test: cell_distances.tar.gz
 
 .PHONY: clean
 clean:
-	rm -rf cell_distances extracted/ cell_distances.tar.gz
+	rm -rf cell_distances distances/ cell_distances.tar.gz

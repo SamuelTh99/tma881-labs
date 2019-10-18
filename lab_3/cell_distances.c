@@ -8,7 +8,7 @@
 #define CHUNK_SIZE 100000
 #define LINE_LENGTH 24
 #define MAX_DIST 3464
-#define FILENAME "cells"
+#define FILENAME "./test_data/cell_50"
 
 struct coord {
     short n1; 
@@ -31,15 +31,15 @@ int main(int argc, char* argv[]) {
     int num_threads = atoi(argv[1] + 2);
     omp_set_num_threads(num_threads);
 
-    printf("reading file ...\n");
+    // printf("reading file ...\n");
     char* lines[CHUNK_SIZE];
     long num_coords = read_file(lines);
 
-    printf("parsing coords ...\n");
+    // printf("parsing coords ...\n");
     struct coord coords[num_coords];
     parse_coords(coords, num_coords, lines);
 
-    printf("computing distances ...\n");
+    // printf("computing distances ...\n");
     long dist_counts[MAX_DIST];
     compute_distances(dist_counts, num_coords, coords);
 

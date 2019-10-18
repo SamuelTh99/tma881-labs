@@ -4,15 +4,18 @@
 
 ### OpenMP
 
-### Syncronization in OpenMP
+- Loop collapsing?
+- Synchronization (critical vs atomic vs reduction)
+- Tasks (for reading next file chunk in parallel while computing distances for the previous one)
+- Reduction of arrays
+- Schedulers (we want to go for static, as each chunk will have approximately the same runtime)
+    - Do we want to set chunk size manually?
 
 ### Parsing strings
 
 ### Inlining??
 
-### Cache locality, memory fragmentation??
-
-### 
+### Data locality, memory fragmentation??
 
 ## Intended program layout
 
@@ -32,13 +35,12 @@
         x Store result in an array
     x Print result
 2. Parallelize sequential program
-    - Parsing of coordinates
-    - Computation of distances
-        - Needs some mechanism for synchronizing writing to results array
+    x Parsing of coordinates
+    x Computation of distances
 3. Handle large files
-    - read two chunks, 
-    - calculate 
-    - throw away the second chunk 
-    - read next chunk 
-    - calcuate first chunk with new chunk 
-    - repeat
+    - For each chunk:
+        - Parse coordinates
+        - Compute distances to all other coords in chunk
+        - For each succeeding chunk:
+            - Parse coordinates
+            - Compute distances between all coords in first chunk and all coords in second chunk
