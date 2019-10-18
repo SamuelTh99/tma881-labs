@@ -6,7 +6,6 @@
 #include <omp.h> 
 
 #define MAX_LINES 100000
-#define CHUNK_SIZE 1000
 #define LINE_LENGTH 24
 #define MAX_DIST 3466
 #define FILENAME "cells"
@@ -17,9 +16,11 @@ struct coord {
     short n3;
 };
 
-long read_file(char* lines[], char* filename);
-void parse_coords(struct coord coords[], long num_coords, char* lines[]);
-void compute_distances(long dist_counts[], long num_coords, struct coord coords[]);
+void cell_distances(long dist_counts[], char* filename);
+size_t read_chunk(struct coord chunk[], FILE* fp);
+void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], size_t chunk_size);
+void compute_distances_between_chunks(long dist_counts[], struct coord chunk_1[], size_t chunck_1_size, struct coord chunk_2[], size_t chunk_2_size);
+struct coord parse_coord(char* line);
 short compute_distance(struct coord c1, struct coord c2);
 void print_results(long dist_counts[]);
 
@@ -37,118 +38,111 @@ int main(int argc, char* argv[]) {
     int num_threads = atoi(argv[1] + 2);
     omp_set_num_threads(num_threads);
 
-    // printf("reading file ...\n");
-    char* lines[MAX_LINES];
-    long num_coords = read_file(lines, filename);
-
-    // printf("parsing coords ...\n");
-    struct coord coords[num_coords];
-    parse_coords(coords, num_coords, lines);
-
-    // printf("computing distances ...\n");
     long dist_counts[MAX_DIST];
-    compute_distances(dist_counts, num_coords, coords);
-
+    cell_distances(dist_counts, filename);
     print_results(dist_counts);
 
     return 0;
 }
 
-long read_file(char* lines[], char* filename) {
+void cell_distances(long dist_counts[], char* filename) {
+    struct coord chunk_1[MAX_LINES];
+    struct coord chunk_2[MAX_LINES];
+
     FILE* fp = fopen(filename, "r");
     if (fp == NULL) {
         printf("could not open file %s\n", filename);
-        exit(1);
+        exit(1);   
     }
 
-    char line[LINE_LENGTH];
-    long num_lines = 0;
-    while (fread(line, sizeof(char), LINE_LENGTH, fp) == LINE_LENGTH) { // TODO: no bufferoverflow -check
-        lines[num_lines] = (char*) malloc(sizeof(char) * LINE_LENGTH);
-        memcpy(lines[num_lines], line, sizeof(char) * LINE_LENGTH);
-        num_lines++;
+    for (size_t i = 0; i < MAX_DIST; i++) {
+        dist_counts[i] = 0;
+    }
+
+    size_t chunk_1_size;
+    int i = 0;
+    while ((chunk_1_size = read_chunk(chunk_1, fp)) > 0) {
+        compute_distances_within_chunk(dist_counts, chunk_1, chunk_1_size);
+        
+        size_t chunk_2_size;
+        while ((chunk_2_size = read_chunk(chunk_2, fp)) > 0) {
+            compute_distances_between_chunks(dist_counts, chunk_1, chunk_1_size, chunk_2, chunk_2_size);
+        }
+
+        i++;
+
+        fseek(fp, i * MAX_LINES * LINE_LENGTH, SEEK_SET);
     }
 
     fclose(fp);
-
-    return num_lines;
 }
 
-void parse_coords(struct coord coords[], long num_coords, char* lines[]) {
-    for (size_t i = 0; i < num_coords; i++) {
-        char* line = lines[i];
+size_t read_chunk(struct coord chunk[], FILE* fp) {
+    char line[LINE_LENGTH];
+    long lines_read = 0;
+    while (lines_read < MAX_LINES && fread(line, sizeof(char), LINE_LENGTH, fp) == LINE_LENGTH) {
+        chunk[lines_read] = parse_coord(line);
+        lines_read++;
+    }
+    return lines_read;
+}
 
-        short n1, n2, n3;
+struct coord parse_coord(char* line) {
+    short n1, n2, n3;
 
-        n1 = (line[1] - 48) * 10000;
-        n1 += (line[2] - 48) * 1000;
-        n1 += (line[4] - 48) * 100;
-        n1 += (line[5] - 48) * 10;
-        n1 += (line[6] - 48);
-        if (line[0] == '-') {
-            n1 = -n1;
+    n1 = (line[1] - 48) * 10000;
+    n1 += (line[2] - 48) * 1000;
+    n1 += (line[4] - 48) * 100;
+    n1 += (line[5] - 48) * 10;
+    n1 += (line[6] - 48);
+    if (line[0] == '-') {
+        n1 = -n1;
+    }
+
+    n2 = (line[9] - 48) * 10000;
+    n2 += (line[10] - 48) * 1000;
+    n2 += (line[12] - 48) * 100;
+    n2 += (line[13] - 48) * 10;
+    n2 += (line[14] - 48);
+    if (line[8] == '-') {
+        n2 = -n2;
+    }
+    
+    n3 = (line[17] - 48) * 10000;
+    n3 += (line[18] - 48) * 1000;
+    n3 += (line[20] - 48) * 100;
+    n3 += (line[21] - 48) * 10;
+    n3 += (line[22] - 48);
+    if (line[16] == '-') {
+        n3 = -n3;
+    }
+
+    struct coord c;
+    c.n1 = n1;
+    c.n2 = n2;
+    c.n3 = n3;
+
+    return c;
+}
+
+void compute_distances_within_chunk(long dist_counts[], struct coord chunk[], size_t chunk_size) {
+    for (size_t i = 0; i < chunk_size - 1; i++) {
+        for (size_t j = i + 1; j < chunk_size; j++) {
+            struct coord c1 = chunk[i];
+            struct coord c2 = chunk[j];
+            short dist = compute_distance(c1, c2);
+            dist_counts[dist]++;
         }
-
-        n2 = (line[9] - 48) * 10000;
-        n2 += (line[10] - 48) * 1000;
-        n2 += (line[12] - 48) * 100;
-        n2 += (line[13] - 48) * 10;
-        n2 += (line[14] - 48);
-        if (line[8] == '-') {
-            n2 = -n2;
-        }
-        
-        n3 = (line[17] - 48) * 10000;
-        n3 += (line[18] - 48) * 1000;
-        n3 += (line[20] - 48) * 100;
-        n3 += (line[21] - 48) * 10;
-        n3 += (line[22] - 48);
-        if (line[16] == '-') {
-            n3 = -n3;
-        }
-
-        free(line);
-
-        struct coord c;
-        c.n1 = n1;
-        c.n2 = n2;
-        c.n3 = n3;
-        coords[i] = c;
     }
 }
 
-void compute_distances(long dist_counts[], long num_coords, struct coord coords[]) {
-    for (size_t dist = 0; dist < MAX_DIST; dist++) {
-        dist_counts[dist] = 0;
-    }
-
-    size_t num_chunks = num_coords / CHUNK_SIZE + 1;
-
-    #pragma omp parallel for reduction(+:dist_counts[:MAX_DIST])
-    for (size_t chunk_i = 0; chunk_i < num_chunks; chunk_i++) {
-        size_t start_index_i = chunk_i * CHUNK_SIZE;
-
-        // Calculate distances between all coords in chunk i
-        for (size_t i1 = start_index_i; i1 < start_index_i + CHUNK_SIZE - 1 && i1 < num_coords; i1++) {
-            for (size_t i2 = i1 + 1; i2 < start_index_i + CHUNK_SIZE && i2 < num_coords; i2++) {
-                struct coord c1 = coords[i1];
-                struct coord c2 = coords[i2];
-                short dist = compute_distance(c1, c2);
-                dist_counts[dist]++;
-            }
-        }
-
-        for (size_t chunk_j = chunk_i + 1; chunk_j < num_chunks; chunk_j++) {
-            // Calculate distances between all coords in chunks i and j
-            for (size_t i = start_index_i; i < start_index_i + CHUNK_SIZE && i < num_coords; i++) {
-                size_t start_index_j = chunk_j * CHUNK_SIZE;
-                for (size_t j = start_index_j; j < start_index_j + CHUNK_SIZE && j < num_coords; j++) {
-                    struct coord c1 = coords[i];
-                    struct coord c2 = coords[j];
-                    short dist = compute_distance(c1, c2);
-                    dist_counts[dist]++;
-                }
-            }
+void compute_distances_between_chunks(long dist_counts[], struct coord chunk_1[], size_t chunk_1_size, struct coord chunk_2[], size_t chunk_2_size) {
+    for (size_t i = 0; i < chunk_1_size; i++) {
+        for (size_t j = 0; j < chunk_2_size; j++) {
+            struct coord c1 = chunk_1[i];
+            struct coord c2 = chunk_2[j];
+            short dist = compute_distance(c1, c2);
+            dist_counts[dist]++;
         }
     }
 }
@@ -164,6 +158,8 @@ short compute_distance(struct coord c1, struct coord c2){
 void print_results(long dist_counts[]) {
     for (size_t i = 0; i < MAX_DIST; i++) {
         long count = dist_counts[i];
-        printf("%05.2f %ld\n", ((double) i) / 100.0, count);
+        if (count != 0) {
+            printf("%05.2f %ld\n", ((double) i) / 100.0, count);
+        }
     }
 }
