@@ -2,7 +2,7 @@
 all: heat_diffusion
 
 heat_diffusion: heat_diffusion.c
-	gcc -O3 -o heat_diffusion heat_diffusion.c -lm 
+	gcc -O3 -o heat_diffusion heat_diffusion.c -lm -lOpenCL
 
 run: heat_diffusion
 	./heat_diffusion -n20 -d0.02
