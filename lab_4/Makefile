@@ -2,13 +2,13 @@
 all: heat_diffusion
 
 heat_diffusion: heat_diffusion.c
-	gcc -O3 -o heat_diffusion heat_diffusion.c -lm -lOpenCL
+	gcc -O2 -o heat_diffusion heat_diffusion.c -lm -lOpenCL
 
 run: heat_diffusion
 	./heat_diffusion -n20 -d0.02
 
 heat_diffusion.tar.gz: heat_diffusion.c Makefile
-	tar -cvzf heat_diffusion.tar.gz heat_diffusion.c Makefile
+	tar -cvzf heat_diffusion.tar.gz heat_diffusion.c heat_diffusion.cl Makefile
 
 .PHONY: test
 test: clean heat_diffusion.tar.gz
