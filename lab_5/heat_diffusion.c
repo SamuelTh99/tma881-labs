@@ -10,6 +10,7 @@ void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusi
 void read_dimensions(FILE* f, long* rows, long* cols);
 void read_matrix(FILE* f, double matrix[], long cols);
 long get_matrix_index(long row, long col, long row_len);
+void apply_heat_diffusion_on_rows(double* result, double* matrix, long row_offset, long chunk_size, long rows, long cols, long matrix_len, double diffusion_constant);
 double apply_heat_diffusion(double* m, long i, long row_len, long n, double c);
 void assert_success(int error, char* msg);
 void print_matrix(double* matrix, long matrix_len, long row_len);
@@ -75,18 +76,18 @@ int main(int argc, char* argv[]) {
 void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffusion_constant) {
     int error;
 
-    // Read input file.
+    // Read dimensions from input file.
     FILE* f = fopen(filename, "r");
     long rows, cols;
     read_dimensions(f, &rows, &cols);
+
+    // Read matrix values from input file.
     long matrix_len = (rows+2) * (cols+2);
     double* matrix = (double*) malloc(sizeof(double) * matrix_len);
     for (long i = 0; i < matrix_len; i++) {
         matrix[i] = 0;
     }
     read_matrix(f, matrix, cols);
-
-    long chunk_size = rows / (nmb_mpi_proc - 1);
 
     if (nmb_mpi_proc == 1) {
         double* m = (double*) malloc(sizeof(double) * matrix_len);
@@ -104,9 +105,9 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
             m = matrix;
             matrix = tmp;
         }
-
         free(m);
     } else { 
+        // Broadcast matrix dimensions.
         {
             int len = 3;
             long msg[len];
@@ -117,17 +118,31 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
             assert_success(error, "master bcast");
         }
 
+        long chunk_size = rows / nmb_mpi_proc;
+        long master_row_offset = 0;
         int result_len = chunk_size * cols;
         double* result = (double*) malloc(sizeof(double) * result_len);
+
+        // Start computations.
         for (long iter = 0; iter < iterations; iter++) {
+            printf("iteration %ld\n", iter);
+
             error = MPI_Bcast(matrix, matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
             assert_success(error, "master bcast");
+
+            apply_heat_diffusion_on_rows(result, matrix, master_row_offset, chunk_size, rows, cols, matrix_len, diffusion_constant);
+            for (long r = 0; r < chunk_size; r++) {
+                for (long c = 0; c < cols; c++) {
+                    long i = get_matrix_index(r, c, cols);
+                    matrix[i] = result[c + (r * cols)];
+                }
+            }
 
             for (long rank = 1; rank < nmb_mpi_proc; rank++) {
                 error = MPI_Recv(result, result_len, MPI_DOUBLE, rank, RESULT_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 assert_success(error, "master recv result");
 
-                long row_offset = chunk_size * (rank - 1);
+                long row_offset = chunk_size * rank;
                 for (long r = 0; r < chunk_size; r++) {
                     for (long c = 0; c < cols; c++) {
                         long i = get_matrix_index(r + row_offset, c, cols);
@@ -135,6 +150,9 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
                     }
                 }
             }
+
+            // printf("iteration %ld\n", iter);
+            // print_matrix(matrix, matrix_len, cols);
         }
 
         free(result);
@@ -162,8 +180,8 @@ void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusi
         matrix_len = msg[2];
     }
 
-    long chunk_size = rows / (nmb_mpi_proc - 1);
-    long row_offset = chunk_size * (mpi_rank - 1);
+    long chunk_size = rows / nmb_mpi_proc;
+    long row_offset = chunk_size * mpi_rank;
     int result_len = chunk_size * cols;
 
     double* matrix = (double*) malloc(sizeof(double) * matrix_len);
@@ -171,18 +189,7 @@ void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusi
     for (long iter = 0; iter < iterations; iter++) {
         error = MPI_Bcast(matrix, matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
         assert_success(error, "worker receive matrix");
-
-        long i = (row_offset + 1) * cols + 3;
-        long result_i = 0;
-        for (long r = row_offset; r < row_offset + chunk_size; r++) {
-            for (long c = 0; c < cols; c++) {
-                result[result_i] = apply_heat_diffusion(matrix, i, cols, matrix_len, diffusion_constant);
-                result_i++;
-                i++;
-            }
-            i += 2;
-        }
-
+        apply_heat_diffusion_on_rows(result, matrix, row_offset, chunk_size, rows, cols, matrix_len, diffusion_constant);
         error = MPI_Send(result, result_len, MPI_DOUBLE, MASTER_RANK, RESULT_TAG, MPI_COMM_WORLD);
         assert_success(error, "worker send result");
     }
@@ -209,9 +216,20 @@ void read_matrix(FILE* f, double matrix[], long cols) {
 }
 
 long get_matrix_index(long row, long col, long row_len) {
-    // Without padding:
-    // return row * row_len + col
     return (row+1) * (row_len+2) + col + 1;
+}
+
+void apply_heat_diffusion_on_rows(double* result, double* matrix, long row_offset, long chunk_size, long rows, long cols, long matrix_len, double diffusion_constant) {
+    long i = (row_offset+1) * (cols+2) + 1;
+    long result_i = 0;
+    for (long r = row_offset; r < row_offset + chunk_size; r++) {
+        for (long c = 0; c < cols; c++) {
+            result[result_i] = apply_heat_diffusion(matrix, i, cols, matrix_len, diffusion_constant);
+            result_i++;
+            i++;
+        }
+        i += 2;
+    }
 }
 
 double apply_heat_diffusion(double* matrix, long i, long row_len, long matrix_len, double diffusion_constant) {
@@ -221,12 +239,6 @@ double apply_heat_diffusion(double* matrix, long i, long row_len, long matrix_le
     double above = matrix[i-row_len-2];
     double below = matrix[i+row_len+2];
     return self + diffusion_constant * ((left + right + above + below) / 4 - self);
-    // double sum = 0;
-    // sum += matrix[i-1]; 
-    // sum += matrix[i+1];
-    // sum += matrix[i-row_len-2]; 
-    // sum += matrix[i+row_len+2];
-    // return matrix[i] + diffusion_constant * (sum / 4 - matrix[i]);
 }
 
 void assert_success(int error, char* msg) {
