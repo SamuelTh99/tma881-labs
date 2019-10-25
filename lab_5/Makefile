@@ -6,6 +6,14 @@ heat_diffusion: heat_diffusion.c
 
 .PHONY: run
 run: heat_diffusion
+	mpirun -n 1 heat_diffusion -d0.0333333 -n7
+
+.PHONY: run1
+run1: heat_diffusion
+	mpirun -n 1 heat_diffusion -d0.01 -n100000 diffusion_100_100
+
+.PHONY: run10
+run10: heat_diffusion
 	mpirun -n 10 heat_diffusion -d0.01 -n100000 diffusion_100_100
 
 heat_diffusion.tar.gz: heat_diffusion.c Makefile

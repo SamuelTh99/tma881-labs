@@ -8,10 +8,10 @@
 void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffusion_constant);
 void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusion_constant);
 void read_dimensions(FILE* f, long* rows, long* cols);
-void read_matrix(FILE* f, double matrix[], long cols);
+void read_matrix_values(FILE* f, double matrix[], long cols);
 long get_matrix_index(long row, long col, long row_len);
-void apply_heat_diffusion_on_rows(double* result, double* matrix, long row_offset, long chunk_size, long rows, long cols, long matrix_len, double diffusion_constant);
-double apply_heat_diffusion(double* m, long i, long row_len, long n, double c);
+void apply_heat_diffusion_on_rows(double* result, double* local_matrix, long chunk_size, long cols, double diffusion_constant);
+double apply_heat_diffusion(double* matrix, long i, long row_len, double diffusion_constant);
 void assert_success(int error, char* msg);
 void print_matrix(double* matrix, long matrix_len, long row_len);
 double average(double* matrix, long rows, long cols);
@@ -87,7 +87,7 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
     for (long i = 0; i < matrix_len; i++) {
         matrix[i] = 0;
     }
-    read_matrix(f, matrix, cols);
+    read_matrix_values(f, matrix, cols);
 
     if (nmb_mpi_proc == 1) {
         double* m = (double*) malloc(sizeof(double) * matrix_len);
@@ -96,7 +96,7 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
             long i = cols + 3;
             for (long r = 0; r < rows; r++) {
                 for (long c = 0; c < cols; c++) {
-                    m[i] = apply_heat_diffusion(matrix, i, cols, matrix_len, diffusion_constant);
+                    m[i] = apply_heat_diffusion(matrix, i, cols, diffusion_constant);
                     i++;
                 }
                 i += 2;
@@ -118,19 +118,29 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
             assert_success(error, "master bcast");
         }
 
+        // Set up data structures.
         long chunk_size = rows / nmb_mpi_proc;
-        long master_row_offset = 0;
         int result_len = chunk_size * cols;
+        int local_matrix_len = (chunk_size + 2) * (cols + 2);
+
         double* result = (double*) malloc(sizeof(double) * result_len);
+        double* local_matrix = (double*) malloc(sizeof(double) * local_matrix_len);
+
+        int lens[nmb_mpi_proc], poss[nmb_mpi_proc];
+        for (long rank = 0; rank < nmb_mpi_proc; rank++) {
+            lens[rank] = local_matrix_len;
+            long row_offset = chunk_size * rank;
+            poss[rank] = row_offset * (cols + 2);
+        }
 
         // Start computations.
         for (long iter = 0; iter < iterations; iter++) {
-            printf("iteration %ld\n", iter);
+            // error = MPI_Bcast(matrix, matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
+            // assert_success(error, "master bcast");
+            error = MPI_Scatterv(matrix, lens, poss, MPI_DOUBLE, local_matrix, local_matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
+            assert_success(error, "master sent and recived scattered matrix");
 
-            error = MPI_Bcast(matrix, matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
-            assert_success(error, "master bcast");
-
-            apply_heat_diffusion_on_rows(result, matrix, master_row_offset, chunk_size, rows, cols, matrix_len, diffusion_constant);
+            apply_heat_diffusion_on_rows(result, local_matrix, chunk_size, cols, diffusion_constant);
             for (long r = 0; r < chunk_size; r++) {
                 for (long c = 0; c < cols; c++) {
                     long i = get_matrix_index(r, c, cols);
@@ -156,6 +166,7 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
         }
 
         free(result);
+        free(local_matrix);
     }
 
     // Calculate & print averages.
@@ -168,8 +179,9 @@ void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffu
 
 void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusion_constant) {
     int error;
-    long rows, cols, matrix_len;
 
+    // Receive matrix dimensions.
+    long rows, cols, matrix_len;
     {
         int len = 3;
         long msg[len];
@@ -180,21 +192,31 @@ void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusi
         matrix_len = msg[2];
     }
 
+    // Set up data structures.
     long chunk_size = rows / nmb_mpi_proc;
-    long row_offset = chunk_size * mpi_rank;
     int result_len = chunk_size * cols;
+    int local_matrix_len = (chunk_size + 2) * (cols + 2);
 
-    double* matrix = (double*) malloc(sizeof(double) * matrix_len);
+    double* local_matrix = (double*) malloc(sizeof(double) * local_matrix_len);
     double* result = (double*) malloc(sizeof(double) * result_len);
+
+    // Start computations.
     for (long iter = 0; iter < iterations; iter++) {
-        error = MPI_Bcast(matrix, matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
-        assert_success(error, "worker receive matrix");
-        apply_heat_diffusion_on_rows(result, matrix, row_offset, chunk_size, rows, cols, matrix_len, diffusion_constant);
+        // Receive part of matrix.
+        error = MPI_Scatterv(NULL, NULL, NULL, NULL, local_matrix, local_matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
+        assert_success(error, "worker receive scattered matrix");
+
+        // Compute heat diffusion on assigned part of matrix.
+        apply_heat_diffusion_on_rows(result, local_matrix, chunk_size, cols, diffusion_constant);
+
+        // Send back results to master.
         error = MPI_Send(result, result_len, MPI_DOUBLE, MASTER_RANK, RESULT_TAG, MPI_COMM_WORLD);
         assert_success(error, "worker send result");
     }
 
-    free(matrix);
+    printf("worker %d done\n", mpi_rank);
+
+    free(local_matrix);
     free(result);
 }
 
@@ -205,7 +227,7 @@ void read_dimensions(FILE* f, long* rows, long* cols) {
     }
 }
 
-void read_matrix(FILE* f, double matrix[], long cols) {
+void read_matrix_values(FILE* f, double matrix[], long cols) {
     long row, col, i;
     double val;
     int read;
@@ -219,20 +241,15 @@ long get_matrix_index(long row, long col, long row_len) {
     return (row+1) * (row_len+2) + col + 1;
 }
 
-void apply_heat_diffusion_on_rows(double* result, double* matrix, long row_offset, long chunk_size, long rows, long cols, long matrix_len, double diffusion_constant) {
-    long i = (row_offset+1) * (cols+2) + 1;
-    long result_i = 0;
-    for (long r = row_offset; r < row_offset + chunk_size; r++) {
-        for (long c = 0; c < cols; c++) {
-            result[result_i] = apply_heat_diffusion(matrix, i, cols, matrix_len, diffusion_constant);
-            result_i++;
-            i++;
+void apply_heat_diffusion_on_rows(double* result, double* local_matrix, long chunk_size, long cols, double diffusion_constant) {
+    for (long r = 0, matrix_i = cols + 3, result_i = 0; r < chunk_size; r++, matrix_i += 2) {
+        for (long c = 0; c < cols; c++, matrix_i++, result_i++) {
+            result[result_i] = apply_heat_diffusion(local_matrix, matrix_i, cols, diffusion_constant);
         }
-        i += 2;
     }
 }
 
-double apply_heat_diffusion(double* matrix, long i, long row_len, long matrix_len, double diffusion_constant) {
+double apply_heat_diffusion(double* matrix, long i, long row_len, double diffusion_constant) {
     double self = matrix[i];
     double left = matrix[i-1];
     double right = matrix[i+1];
