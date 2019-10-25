@@ -6,7 +6,7 @@ heat_diffusion: heat_diffusion.c
 
 .PHONY: run
 run: heat_diffusion
-	mpirun -n 1 heat_diffusion -d0.0333333 -n7
+	mpirun -n 2 heat_diffusion -d0.0333333 -n2
 
 .PHONY: run1
 run1: heat_diffusion
