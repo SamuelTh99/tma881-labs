@@ -67,6 +67,7 @@ int main(int argc, char* argv[]) {
     double* matrix;
     long num_rows, row_len, matrix_len;
 
+
     if (mpi_rank == MASTER_RANK) {
         printf("reading matrix ... ");
         fflush(stdout);
