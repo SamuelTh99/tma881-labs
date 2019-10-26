@@ -4,8 +4,9 @@ all: heat_diffusion
 heat_diffusion: heat_diffusion.c
 	gcc -O2 -o heat_diffusion heat_diffusion.c -lm -lOpenCL
 
+.PHONY: run
 run: heat_diffusion
-	./heat_diffusion -n20 -d0.02
+	./heat_diffusion -n20 -d0.02 diffusion_100_100
 
 heat_diffusion.tar.gz: heat_diffusion.c Makefile
 	tar -cvzf heat_diffusion.tar.gz heat_diffusion.c heat_diffusion.cl Makefile

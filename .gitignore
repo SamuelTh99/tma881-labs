@@ -2,5 +2,6 @@
 lab_2/newton
 lab_3/cell_distances
 lab_4/heat_diffusion
+lab_4/heat_diffusion
 *.ppm
 output

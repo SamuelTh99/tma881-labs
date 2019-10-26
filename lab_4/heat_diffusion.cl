@@ -29,6 +29,6 @@ __kernel void
     if (i + row_len < n) {
         sum += m[i+row_len];
     }
-
+    
     m[i] = m[i] + c * (sum / 4 - m[i]);
 }

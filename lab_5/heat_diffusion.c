@@ -5,27 +5,26 @@
 #include <string.h>
 #include <mpi.h>
 
-void main_master(int nmb_mpi_proc, char* filename, long iterations, double diffusion_constant);
-void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, double diffusion_constant);
+void main_master(int nmb_mpi_proc, char* filename, long iterations, float diffusion_constant);
+void main_worker(int nmb_mpi_proc, int mpi_rank, long iterations, float diffusion_constant);
 void read_dimensions(FILE* f, long* rows, long* cols);
-void read_matrix_values(FILE* f, double matrix[], long cols);
+void read_matrix_values(FILE* f, float matrix[], long cols);
 long get_matrix_index(long row, long col, long row_len);
-void apply_heat_diffusion(double* result, double* local_matrix, long num_rows, long row_len, double diffusion_constant);
-double calculate_new_temperature(double* matrix, long i, long row_len, double diffusion_constant);
+void apply_heat_diffusion(float* result, float* local_matrix, long num_rows, long row_len, float diffusion_constant);
+float calculate_new_temperature(float* matrix, long i, long row_len, float diffusion_constant);
 void assert_success(int error, char* msg);
-void print_matrix(int rank, double* matrix, long matrix_len, long row_len);
-double average(double* matrix, long rows, long cols);
-double average_diff(double* matrix, double avg, long rows, long cols);
-void swap(double** m1, double** m2);
+void print_matrix(int rank, float* matrix, long matrix_len, long row_len);
+float average(float* matrix, long rows, long cols);
+float average_diff(float* matrix, float avg, long rows, long cols);
+void swap(float** m1, float** m2);
 
 #define MASTER_RANK 0
 #define FILENAME "diffusion"
 #define ROW_TAG 1
-#define RESULT_TAG 2
 
 int main(int argc, char* argv[]) {
     // Parse cmd args.
-    double diffusion_constant = -1;
+    float diffusion_constant = -1;
     long iterations = -1;
 
     int option; 
@@ -38,7 +37,7 @@ int main(int argc, char* argv[]) {
                 diffusion_constant = atof(optarg);
                 break;
             default:
-                printf("Usage: ./heat_diffusion -n<number of iterations> -d<diffusion constant>\n");
+                printf("Usage: ./heat_diffusion -n<number of iterations> -d<diffusion constant> <filename>\n");
                 return 1;
         }
     }
@@ -64,12 +63,10 @@ int main(int argc, char* argv[]) {
     error = MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     assert_success(error, "mpi comm rank");
 
-    double* matrix;
+    float* matrix;
     long num_rows, row_len, matrix_len;
 
     if (mpi_rank == MASTER_RANK) {
-        printf("reading matrix ... ");
-        fflush(stdout);
         FILE* f = fopen(filename, "r");
 
         // Read dimensions from input file.
@@ -77,28 +74,23 @@ int main(int argc, char* argv[]) {
 
         // Read matrix values from input file.
         matrix_len = (num_rows+2) * (row_len+2);
-        matrix = (double*) malloc(sizeof(double) * matrix_len);
+        matrix = (float*) malloc(sizeof(float) * matrix_len);
         for (long i = 0; i < matrix_len; i++) {
             matrix[i] = 0;
         }
         read_matrix_values(f, matrix, row_len);
-        printf("done\n");
     } 
 
     if (nmb_mpi_proc == 1) {
         // If only one node, do everything locally.
-        double* matrix_copy = (double*) malloc(sizeof(double) * matrix_len);
+        float* matrix_copy = (float*) malloc(sizeof(float) * matrix_len);
         for (long iter = 0; iter < iterations; iter++) {
             apply_heat_diffusion(matrix_copy, matrix, num_rows, row_len, diffusion_constant);
             swap(&matrix_copy, &matrix);
         }
         free(matrix_copy);
     } else {
-        // Distribute dimensions.
-        if (mpi_rank == MASTER_RANK) {
-            printf("distributing dimensions ... ");
-            fflush(stdout);
-        }
+        // Otherwise, distribute dimensions.
         {
             int len = 3;
             long msg[len];
@@ -115,19 +107,12 @@ int main(int argc, char* argv[]) {
                 matrix_len = msg[2];
             }
         }
-        if (mpi_rank == MASTER_RANK) {
-            printf("done\n");
-        }
 
         // Distribute matrix.
-        if (mpi_rank == MASTER_RANK) {
-            printf("distributing matrix ... ");
-            fflush(stdout);
-        }
         long rows_per_worker = num_rows / nmb_mpi_proc;
         long padded_row_len = row_len + 2;
         int local_matrix_len = (rows_per_worker + 2) * padded_row_len;
-        double* local_matrix = (double*) malloc(sizeof(double) * local_matrix_len);
+        float* local_matrix = (float*) malloc(sizeof(float) * local_matrix_len);
         int lens[nmb_mpi_proc], poss[nmb_mpi_proc];
         if (mpi_rank == MASTER_RANK) {
             for (long rank = 0; rank < nmb_mpi_proc; rank++) {
@@ -136,18 +121,11 @@ int main(int argc, char* argv[]) {
                 poss[rank] = row_offset * padded_row_len;
             }
         }
-        error = MPI_Scatterv(matrix, lens, poss, MPI_DOUBLE, local_matrix, local_matrix_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
+        error = MPI_Scatterv(matrix, lens, poss, MPI_FLOAT, local_matrix, local_matrix_len, MPI_FLOAT, MASTER_RANK, MPI_COMM_WORLD);
         assert_success(error, "scatter matrix");
-        if (mpi_rank == MASTER_RANK) {
-            printf("done\n");
-        }
 
-        // Begin computation.
-        if (mpi_rank == MASTER_RANK) {
-            printf("computing ... ");
-            fflush(stdout);
-        }
-        double* local_matrix_copy = (double*) malloc(sizeof(double) * local_matrix_len);
+        // Begin computations.
+        float* local_matrix_copy = (float*) malloc(sizeof(float) * local_matrix_len);
         for (long i = 0; i < local_matrix_len; i++) {
             local_matrix_copy[i] = 0;
         }
@@ -155,39 +133,28 @@ int main(int argc, char* argv[]) {
             apply_heat_diffusion(local_matrix_copy, local_matrix, rows_per_worker, row_len, diffusion_constant);
             swap(&local_matrix_copy, &local_matrix);
 
-            // Send then receive.
             if (mpi_rank != 0) {
                 // Send up and receive from above.
                 error = MPI_Sendrecv(
-                    local_matrix + padded_row_len, padded_row_len, MPI_DOUBLE, mpi_rank - 1, ROW_TAG,
-                    local_matrix, padded_row_len, MPI_DOUBLE, mpi_rank - 1, ROW_TAG,
+                    local_matrix + padded_row_len, padded_row_len, MPI_FLOAT, mpi_rank - 1, ROW_TAG,
+                    local_matrix, padded_row_len, MPI_FLOAT, mpi_rank - 1, ROW_TAG,
                     MPI_COMM_WORLD, NULL);
                 assert_success(error, "send and recive from and to above");
             }
             if (mpi_rank != nmb_mpi_proc - 1) {
                 // Send down and receive from below.
                 error = MPI_Sendrecv(
-                    local_matrix + local_matrix_len - 2*padded_row_len, padded_row_len, MPI_DOUBLE, mpi_rank + 1, ROW_TAG,
-                    local_matrix + local_matrix_len - padded_row_len, padded_row_len, MPI_DOUBLE, mpi_rank + 1, ROW_TAG,
+                    local_matrix + local_matrix_len - 2*padded_row_len, padded_row_len, MPI_FLOAT, mpi_rank + 1, ROW_TAG,
+                    local_matrix + local_matrix_len - padded_row_len, padded_row_len, MPI_FLOAT, mpi_rank + 1, ROW_TAG,
                     MPI_COMM_WORLD, NULL);
                 assert_success(error, "send down and receive from below");
             }
         }
-        if (mpi_rank == MASTER_RANK) {
-            printf("done\n");
-        }
 
         // Gather results to master.
-        if (mpi_rank == MASTER_RANK) {
-            printf("gathering results ... ");
-            fflush(stdout);
-        }
         int result_len = rows_per_worker * padded_row_len;
-        error = MPI_Gather(local_matrix + padded_row_len, result_len, MPI_DOUBLE, matrix + padded_row_len, result_len, MPI_DOUBLE, MASTER_RANK, MPI_COMM_WORLD);
+        error = MPI_Gather(local_matrix + padded_row_len, result_len, MPI_FLOAT, matrix + padded_row_len, result_len, MPI_FLOAT, MASTER_RANK, MPI_COMM_WORLD);
         assert_success(error, "gather results");
-        if (mpi_rank == MASTER_RANK) {
-            printf("done\n");
-        }
 
         free(local_matrix);
         free(local_matrix_copy);
@@ -195,11 +162,8 @@ int main(int argc, char* argv[]) {
 
     if (mpi_rank == MASTER_RANK) {
         // Calculate and print averages.
-        printf("calculating averages ... ");
-        fflush(stdout);
-        double avg = average(matrix, num_rows, row_len); 
-        double avg_diff = average_diff(matrix, avg, num_rows, row_len);
-        printf("done\n");
+        float avg = average(matrix, num_rows, row_len); 
+        float avg_diff = average_diff(matrix, avg, num_rows, row_len);
         printf("average: %lf\naverage absolute difference: %lf\n", avg, avg_diff);
     }
 
@@ -216,14 +180,15 @@ void read_dimensions(FILE* f, long* rows, long* cols) {
     int read = fscanf(f, "%zu %zu\n", cols, rows);
     if (read < 2) {
         printf("error read input file\n");
+        exit(1);
     }
 }
 
-void read_matrix_values(FILE* f, double matrix[], long cols) {
+void read_matrix_values(FILE* f, float matrix[], long cols) {
     long row, col, i;
-    double val;
+    float val;
     int read;
-    while ((read = fscanf(f, "%zu %zu %lf\n", &col, &row, &val)) == 3) {
+    while ((read = fscanf(f, "%zu %zu %f\n", &col, &row, &val)) == 3) {
         i = get_matrix_index(row, col, cols);
         matrix[i] = val;
     }
@@ -233,7 +198,7 @@ long get_matrix_index(long row, long col, long row_len) {
     return (row+1) * (row_len+2) + col + 1;
 }
 
-void apply_heat_diffusion(double* dst_matrix, double* src_matrix, long num_rows, long row_len, double diffusion_constant) {
+void apply_heat_diffusion(float* dst_matrix, float* src_matrix, long num_rows, long row_len, float diffusion_constant) {
     long i = row_len + 3;
     for (long r = 0; r < num_rows; r++) {
         for (long c = 0; c < row_len; c++) {
@@ -244,12 +209,12 @@ void apply_heat_diffusion(double* dst_matrix, double* src_matrix, long num_rows,
     }
 }
 
-double calculate_new_temperature(double* matrix, long i, long row_len, double diffusion_constant) {
-    double self = matrix[i];
-    double left = matrix[i-1];
-    double right = matrix[i+1];
-    double above = matrix[i-row_len-2];
-    double below = matrix[i+row_len+2];
+float calculate_new_temperature(float* matrix, long i, long row_len, float diffusion_constant) {
+    float self = matrix[i];
+    float left = matrix[i-1];
+    float right = matrix[i+1];
+    float above = matrix[i-row_len-2];
+    float below = matrix[i+row_len+2];
     return self + diffusion_constant * ((left + right + above + below) / 4 - self);
 }
 
@@ -260,7 +225,7 @@ void assert_success(int error, char* msg) {
     }
 }
 
-void print_matrix(int rank, double* matrix, long matrix_len, long row_len) {
+void print_matrix(int rank, float* matrix, long matrix_len, long row_len) {
     for (long i = 0; i < matrix_len; i++) {
         if (i % row_len == 0) {
             printf("node %d: ", rank);
@@ -272,13 +237,13 @@ void print_matrix(int rank, double* matrix, long matrix_len, long row_len) {
     }
 }
 
-double average(double* matrix, long rows, long cols) {
-    double avg = 0;
+float average(float* matrix, long rows, long cols) {
+    float avg = 0;
     long d = 1;
     long i = cols + 3;
     for (long r = 0; r < rows; r++) {
         for (long c = 0; c < cols; c++) {
-            double x = matrix[i];
+            float x = matrix[i];
             avg += (x - avg) / d;
             d++;
             i++;
@@ -288,13 +253,13 @@ double average(double* matrix, long rows, long cols) {
     return avg;
 }
 
-double average_diff(double* matrix, double avg, long rows, long cols) {
-    double avg_diff = 0;
+float average_diff(float* matrix, float avg, long rows, long cols) {
+    float avg_diff = 0;
     long d = 1;
     long i = cols + 3;
     for (long r = 0; r < rows; r++) {
         for (long c = 0; c < cols; c++) {
-            double x = fabs(matrix[i] - avg);
+            float x = fabs(matrix[i] - avg);
             avg_diff += (x - avg_diff) / d;
             d++;
             i++;
@@ -304,8 +269,8 @@ double average_diff(double* matrix, double avg, long rows, long cols) {
     return avg_diff;
 }
 
-void swap(double** m1, double** m2) {
-    double* tmp;
+void swap(float** m1, float** m2) {
+    float* tmp;
     tmp = *m1;
     *m1 = *m2;
     *m2 = tmp;

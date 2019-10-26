@@ -209,7 +209,7 @@ double average(float* matrix, size_t n) {
 double average_diff(float* matrix, double avg, size_t n) {
   double avg_diff = 0;
   for (size_t i = 1; i <= n; i++) {
-    double x = abs(matrix[i-1] - avg);
+    double x = fabs(matrix[i-1] - avg);
     avg_diff += (x - avg_diff) / i;
   }
   return avg_diff;
