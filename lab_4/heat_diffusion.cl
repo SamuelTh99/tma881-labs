@@ -21,7 +21,7 @@ __kernel void
     }
 
     // up
-    if (i - row_len >= 0) {
+    if (i >= row_len) {
         sum += m[i-row_len];
     }
 

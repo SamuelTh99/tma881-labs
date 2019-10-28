@@ -6,14 +6,14 @@ heat_diffusion: heat_diffusion.c
 
 .PHONY: run
 run: heat_diffusion
-	./heat_diffusion -n20 -d0.02 diffusion_100_100
+	./heat_diffusion -n200 -d0.6 diffusion_100000_100
 
 heat_diffusion.tar.gz: heat_diffusion.c Makefile
 	tar -cvzf heat_diffusion.tar.gz heat_diffusion.c heat_diffusion.cl Makefile
 
 .PHONY: test
 test: clean heat_diffusion.tar.gz
-	/home/hpc2019/a4_grading/check_submission.py ~/git-labs/lab_4/heat_diffusion.tar.gz
+	./check_submission.py ~/git-labs/lab_4/heat_diffusion.tar.gz
 
 .PHONY: clean
 clean:

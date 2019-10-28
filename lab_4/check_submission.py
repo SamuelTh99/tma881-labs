@@ -14,10 +14,8 @@ def check_runtime(width, height, d, n, path, time_bd, repeat):
   os.symlink("/home/hpc2019/a4_grading/test_data/diffusion_{}_{}".format(width,height), path + "/diffusion")
 
   heat_diffusion_cmd = "./heat_diffusion -d{d} -n{n}".format(d = d, n = n)
-  cmd = "hyperfine --export-csv {bench} --time-unit millisecond --warmup {warmup} --max-runs {repeat} \"{cmd}\" --show-output".format(bench = "bench.csv", warmup = warmup, repeat = repeat, cmd = heat_diffusion_cmd)
-  exit(1)
+  cmd = "hyperfine --export-csv {bench} --time-unit millisecond --warmup {warmup} --max-runs {repeat} \"{cmd}\"".format(bench = "bench.csv", warmup = warmup, repeat = repeat, cmd = heat_diffusion_cmd)
   try:
-    print(cmd)
     subprocess.Popen(cmd, shell = True, cwd=path).wait(time_bd_total)
   except subprocess.TimeoutExpired:
     print("TOO SLOW FOR {} ON diffusion_{}_{}".format(heat_diffusion_cmd, width, height))
@@ -32,8 +30,7 @@ def check_runtime(width, height, d, n, path, time_bd, repeat):
         return False
       else:
         return True
-  except Exception as e:
-    print(e)
+  except:
     pass
 
   print("RUNTIME ERROR FOR {} ON diffusion_{}_{}".format(heat_diffusion_cmd, width, height))
@@ -92,7 +89,7 @@ subprocess.Popen(["make", "clean"], cwd=extraction_path).wait()
 if not all(root == "material" or all(map(is_valid_file, files)) for (root, _, files) in os.walk(extraction_path)):
   print("ADDITIONAL FILES AFTER BUILD CLEAN")
   passed = False
-subprocess.Popen(["make", "heat_diffusion"], cwd=extraction_path).wait()
+subprocess.Popen(["make", "heat_diffusion"], cwd=extraction_path, stdout=subprocess.DEVNULL).wait()
 
 
 # check times
